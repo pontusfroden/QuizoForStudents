@@ -1,5 +1,72 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap');
 
+.scan-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 24px;
+}
+.scan-settings .field-label {
+  margin: 0;
+}
+.scan-settings small {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #8b799a;
+}
+.reading-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 18px;
+  background: #f4effb;
+  border-radius: 8px;
+  color: #857093;
+}
+.reading-status p {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.reading-status svg {
+  flex-shrink: 0;
+}
+.extraction-notes {
+  margin-top: 12px;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.extraction-notes summary {
+  cursor: pointer;
+  color: #ab844f;
+}
+.language-select {
+  font-size: 11px;
+  padding: 8px;
+}
+@media (max-width: 760px) {
+  .scan-settings {
+    grid-template-columns: 1fr;
+  }
+  .language-select {
+    font-size: 9px;
+    padding: 6px;
+    max-width: 78px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+  .search-box input {
+    width: 100px;
+  }
+  .reading-status {
+    flex-wrap: wrap;
+  }
+}
+
 :root {
   font-family: 'DM Sans', sans-serif;
   color: #292839;

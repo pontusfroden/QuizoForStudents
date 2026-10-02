@@ -1,6 +1,8 @@
 export interface SourceBlock {
   label: string;
   text: string;
+  method?: 'text' | 'ocr';
+  confidence?: number;
 }
 export interface StudySource {
   id: string;
@@ -10,6 +12,13 @@ export interface StudySource {
   blocks: SourceBlock[];
   wordCount: number;
   warnings: string[];
+  coverage?: {
+    totalPages: number;
+    textPages: number;
+    ocrPages: number;
+    unreadPages: number[];
+    blankPages: number[];
+  };
 }
 export interface StudyCard {
   id: string;

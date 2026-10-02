@@ -47,6 +47,34 @@ export function validateBackup(value: unknown): Library {
         )
       )
         throw new Error('The backup has invalid source material.');
+    for (const source of deck.sources) {
+      const coverage = source.coverage;
+      if (
+        coverage &&
+        (['totalPages', 'textPages', 'ocrPages'].some(
+          (key) =>
+            !Number.isInteger(coverage[key as 'totalPages']) || coverage[key as 'totalPages'] < 0,
+        ) ||
+          !Array.isArray(coverage.unreadPages) ||
+          !Array.isArray(coverage.blankPages) ||
+          [...coverage.unreadPages, ...coverage.blankPages].some(
+            (page) => !Number.isInteger(page) || page < 1 || page > coverage.totalPages,
+          ) ||
+          coverage.textPages + coverage.ocrPages > coverage.totalPages)
+      )
+        throw new Error('The backup has invalid PDF coverage.');
+      if (
+        source.blocks.some(
+          (block) =>
+            (block.method !== undefined && !['text', 'ocr'].includes(block.method)) ||
+            (block.confidence !== undefined &&
+              (!Number.isFinite(block.confidence) ||
+                block.confidence < 0 ||
+                block.confidence > 100)),
+        )
+      )
+        throw new Error('The backup has invalid scan metadata.');
+    }
     for (const card of deck.cards)
       if (
         ['id', 'term', 'prompt', 'answer', 'evidence', 'sourceId', 'location'].some(

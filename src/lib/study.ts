@@ -5,6 +5,10 @@ const stopwords = new Set(
     ' ',
   ),
 );
+for (const word of 'finns kan ska skulle bör behöver utan eftersom därför mellan sedan innan efter både alla varje exempel fråga frågor svar sida sidor bild bilder kapitel anteckningar prov tenta tentamen poäng beskriv förklara redogör diskutera motivera resonera analysera ange nämn gäller vilket vilka denna detta dessa där här medan mycket mer mindre även över inom'.split(
+  ' ',
+))
+  stopwords.add(word);
 export function words(text: string): string[] {
   return text.toLocaleLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}-]*/gu) ?? [];
 }
@@ -59,7 +63,7 @@ export function buildStudyContent(sources: StudySource[]): {
           continue;
         if (seen.has(sentence.toLocaleLowerCase())) continue;
         const definition = sentence.match(
-          /^([\p{L}\p{N}][\p{L}\p{N}\s()/-]{2,65}?)\s*(?::\s+|\s+(?:is|are|means|refers to|är|betyder)\s+)(.{20,})$/iu,
+          /^([\p{L}\p{N}][\p{L}\p{N}\s()/-]{2,65}?)\s*(?::\s+|\s+(?:is|are|means|refers to|är|betyder|innebär|avser|utgör|definieras som)\s+)(.{20,})$/iu,
         );
         let term = definition?.[1]?.trim();
         if (term && (words(term).length > 7 || words(term).every((w) => stopwords.has(w))))
@@ -104,11 +108,11 @@ export function buildStudyContent(sources: StudySource[]): {
   for (const source of sources.filter((s) => s.kind === 'exam'))
     for (const block of source.blocks) {
       for (const line of sentences(block.text)) {
-        const prompt = line.replace(/^\s*\d+[.)]\s*/, '').trim();
+        const prompt = line.replace(/^\s*(?:\d+[a-z]?[.)]|[a-z][)])\s*/iu, '').trim();
         if (
           prompt.length < 20 ||
           prompt.length > 800 ||
-          !/\?|^(?:explain|describe|compare|discuss|define|calculate|evaluate|outline|why|how|what|förklara|beskriv|jämför|beräkna|vad|hur)/iu.test(
+          !/\?|^(?:explain|describe|compare|discuss|define|calculate|evaluate|outline|why|how|what|förklara|beskriv|jämför|beräkna|redogör|diskutera|motivera|resonera|analysera|ange|nämn|definiera|värdera|vad|hur|varför|vilken|vilka)/iu.test(
             prompt,
           )
         )

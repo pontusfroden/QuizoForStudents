@@ -6,6 +6,41 @@ import type { StudySource } from '../src/types';
 import { reflowPdfText } from '../src/lib/extract';
 
 describe('source-grounded study generation', () => {
+  it('recognises Swedish definition patterns and old-test instructions without changing å, ä, ö', () => {
+    const notes: StudySource = {
+      id: 'sv-course',
+      name: 'Kursanteckningar',
+      kind: 'notes',
+      format: 'TXT',
+      wordCount: 40,
+      warnings: [],
+      blocks: [
+        {
+          label: 'Sida 1',
+          text: 'Kommunikation innebär att information överförs mellan människor genom gemensamma symboler.\nÅterkoppling är information som används för att förbättra ett systems funktion.',
+        },
+      ],
+    };
+    const exam: StudySource = {
+      id: 'sv-test',
+      name: 'Tentamen',
+      kind: 'exam',
+      format: 'TXT',
+      wordCount: 30,
+      warnings: [],
+      blocks: [
+        {
+          label: 'Sida 2',
+          text: '1. Redogör för hur information överförs mellan människor genom gemensamma symboler.\na) Motivera varför återkoppling förbättrar ett systems funktion.\n2. Ange hur kommunikation påverkar människor i en organisation.',
+        },
+      ],
+    };
+    const content = buildStudyContent([notes, exam]);
+    expect(content.cards.map((card) => card.term)).toEqual(['Kommunikation', 'Återkoppling']);
+    expect(content.examPrompts).toHaveLength(3);
+    expect(content.examPrompts[0].relatedCardIds).toContain(content.cards[0].id);
+    expect(content.examPrompts[1].prompt).toMatch(/^Motivera/);
+  });
   it('rejoins wrapped PDF lines while preserving headings and numbered prompts', () => {
     expect(
       reflowPdfText(

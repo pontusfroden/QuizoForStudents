@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import JSZip from 'jszip';
-import { pdfFixture } from './pdf-fixture';
+import { mixedPdfFixture, pdfFixture } from './pdf-fixture';
 
 test('sample set, all modes, progress and persistent answers', async ({ page }, testInfo) => {
   const errors: string[] = [];
@@ -18,7 +18,7 @@ test('sample set, all modes, progress and persistent answers', async ({ page }, 
     await page.locator('body').evaluate((body) => body.clientWidth),
   );
   await page.getByRole('button', { name: 'Let’s get learning' }).click();
-  await page.getByRole('combobox').selectOption('5');
+  await page.getByRole('combobox', { name: 'Session length' }).selectOption('5');
   await page.getByRole('button', { name: 'Start 5 questions' }).click();
   for (let index = 0; index < 5; index++) {
     await page.locator('.quiz-option').first().click();
@@ -32,7 +32,7 @@ test('sample set, all modes, progress and persistent answers', async ({ page }, 
   await page.reload();
   await expect(page.locator('.set-progress-label')).toContainText('5 of');
   await page.getByRole('button', { name: /Flip. Think. Remember./ }).click();
-  await page.getByRole('combobox').selectOption('5');
+  await page.getByRole('combobox', { name: 'Session length' }).selectOption('5');
   await page.getByRole('button', { name: 'Start 5 questions' }).click();
   await page.getByRole('button', { name: 'Flip card' }).click();
   await expect(page.locator('.answer-reveal')).toBeVisible();
@@ -177,6 +177,149 @@ test('an image-only PDF reports missing text instead of inventing content', asyn
     buffer: pdfFixture(true),
   });
   await page.getByRole('button', { name: 'Build my study set' }).click();
-  await expect(page.getByRole('alert')).toContainText('no usable text found');
+  await expect(page.getByRole('alert')).toContainText(/no usable text found/i);
   await expect(page.getByRole('button', { name: 'Let’s study' })).toHaveCount(0);
+});
+
+async function scanFixture(page: import('@playwright/test').Page): Promise<Buffer> {
+  const jpeg = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1600;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 1200, 1600);
+    ctx.fillStyle = '#111';
+    ctx.font = '32px Arial';
+    const lines = [
+      'Fotosyntes är den process som omvandlar',
+      'ljusenergi till kemisk energi i växter.',
+      '',
+      'Cellmembranet är en selektiv barriär som',
+      'reglerar vilka ämnen som passerar cellen.',
+      '',
+      '1. Förklara hur fotosyntes lagrar energi.',
+    ];
+    lines.forEach((line, index) => ctx.fillText(line, 90, 130 + index * 65));
+    return canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+  });
+  return Buffer.from(jpeg, 'base64');
+}
+test('Swedish interface and real OCR on a mixed PDF preserve source pages and create Swedish quizzes', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const languageRequests: string[] = [];
+  page.context().on('request', (request) => {
+    if (request.url().includes('.traineddata.gz')) languageRequests.push(request.url());
+  });
+  await page.goto('./');
+  const scan = await scanFixture(page);
+  await page.getByRole('combobox', { name: 'Interface language' }).selectOption('sv');
+  await expect(page.getByRole('heading', { name: 'Lite övning gör stor skillnad.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Prova ditt eget material' }).click();
+  await page.getByRole('textbox', { name: 'Studiesamlingens namn' }).fill('Biologi på svenska');
+  await expect(page.getByRole('combobox', { name: 'Dokumentets språk' })).toHaveValue('eng+swe');
+  await page.getByLabel('Ladda upp studiefiler').setInputFiles({
+    name: 'Biologi.pdf',
+    mimeType: 'application/pdf',
+    buffer: mixedPdfFixture(scan, 1200, 1600),
+  });
+  await page.getByRole('button', { name: 'Skapa min studiesamling' }).click();
+  await expect(page.getByRole('heading', { name: 'Ditt material är klart.' })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.locator('.result-file')).toContainText('2 av 3 sidor lästa');
+  await expect(page.locator('.result-file')).toContainText('1 sida läst med OCR');
+  expect(languageRequests.some((url) => url.endsWith('/swe.traineddata.gz'))).toBe(true);
+  expect(
+    languageRequests.every((url) => url.startsWith('http://127.0.0.1:4173/QuizoForStudents/ocr/')),
+  ).toBe(true);
+  await page.getByText('Visa anmärkningar').click();
+  await expect(page.locator('.extraction-notes')).toContainText('Tom sida 3 hoppades över');
+  await page.screenshot({
+    path: `test-results/swedish-ocr-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Börja studera' }).click();
+  await page.getByRole('textbox', { name: 'Sök i ditt material' }).fill('fotosyntes');
+  await page.getByRole('button', { name: 'Läs texten' }).click();
+  await expect(page.locator('.extracted-text')).toContainText('Sida 2');
+  await expect(page.locator('.extracted-text')).toContainText(
+    'ljusenergi till kemisk energi i växter',
+  );
+  await expect(page.locator('.idea-card').filter({ hasText: 'Fotosyntes' })).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Lite övning gör stor skillnad.' })).toBeVisible();
+  await page.getByRole('button', { name: /Vänd. Tänk. Kom ihåg./ }).click();
+  await page.getByRole('button', { name: 'Starta 3 frågor' }).click();
+  await expect(page.locator('.question-panel')).toContainText('Vad kommer du ihåg om');
+  await page.getByRole('button', { name: 'Vänd kortet' }).click();
+  await expect(page.locator('.answer-reveal')).toContainText('Jämför med källan');
+  await page.getByRole('combobox', { name: 'Gränssnittets språk' }).selectOption('en');
+  await expect(page.getByRole('button', { name: 'Got it', exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('partial extraction is labelled incomplete and reading can be cancelled', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('./');
+  const scan = await scanFixture(page);
+  await page.getByRole('button', { name: 'Try your own notes' }).click();
+  await page.getByRole('textbox', { name: 'Study set name' }).fill('Partial PDF');
+  await page.getByRole('combobox', { name: 'Scanned PDF pages' }).selectOption('off');
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'Mixed.pdf',
+    mimeType: 'application/pdf',
+    buffer: mixedPdfFixture(scan, 1200, 1600),
+  });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await expect(page.getByRole('heading', { name: 'Some materials need a review.' })).toBeVisible();
+  await expect(page.locator('.result-file')).toContainText('1 of 3 pages read');
+  await page.getByText('Show extraction notes').click();
+  await expect(page.locator('.extraction-notes')).toContainText('Enable scanned-page reading');
+  await page.getByRole('button', { name: 'Back to files' }).click();
+  await page.getByRole('combobox', { name: 'Scanned PDF pages' }).selectOption('auto');
+  await page.route('**/ocr/*.traineddata.gz', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    await route.abort().catch(() => {});
+  });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await page.getByRole('button', { name: 'Cancel reading' }).click();
+  await expect(page.getByRole('alert')).toContainText('Reading cancelled');
+  await expect(page.getByRole('button', { name: 'Build my study set' })).toBeEnabled();
+});
+
+test('re-uploading a source replaces it while keeping progress for unchanged cards', async ({
+  page,
+}) => {
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Try your own notes' }).click();
+  await page.getByRole('textbox', { name: 'Study set name' }).fill('Re-upload test');
+  const original =
+    'Gravity is the force of attraction between objects that have mass.\nFriction is a force that opposes the relative motion of surfaces in contact.';
+  await page
+    .getByLabel('Upload study files')
+    .setInputFiles({ name: 'Physics.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await page.getByRole('button', { name: 'Let’s study' }).click();
+  await page.getByRole('button', { name: 'Let’s get learning' }).click();
+  await page.getByRole('button', { name: 'Start 2 questions' }).click();
+  await page.locator('.quiz-option').first().click();
+  await page.getByRole('button', { name: 'End session' }).click();
+  await page.getByRole('button', { name: 'Add materials' }).click();
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'Physics.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(
+      original + '\nEnergy is the capacity of a system to do work or transfer heat.',
+    ),
+  });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await page.getByRole('button', { name: 'Let’s study' }).click();
+  await expect(page.locator('.set-progress-label')).toContainText('1 of 3 concepts explored');
+  await page.getByRole('textbox', { name: 'Search your materials' }).fill('Physics.txt');
+  await expect(page.locator('.material-row')).toHaveCount(1);
 });

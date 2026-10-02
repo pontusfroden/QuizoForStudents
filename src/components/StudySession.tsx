@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { keywords, optionsFor, shuffle, studyQueue } from '../lib/study';
 import type { Mode, StudyCard, StudyDeck } from '../types';
+import { t, locationLabel } from '../lib/i18n';
 
 interface Props {
   deck: StudyDeck;
@@ -65,11 +66,11 @@ export default function StudySession(props: Props) {
   const exam = exams[index];
   const options = useMemo(() => (card ? optionsFor(card, deck.cards) : []), [card, deck.cards]);
   const name = {
-    quiz: 'Quick quiz',
-    flashcards: 'Flashcards',
-    match: 'Match it',
-    recall: 'Written recall',
-    exam: 'Past paper practice',
+    quiz: t('Quick quiz'),
+    flashcards: t('Flashcards'),
+    match: t('Match it'),
+    recall: t('Written recall'),
+    exam: t('Past paper practice'),
   }[props.mode];
   const finish = (finalScore: number) => {
     if (!finalised.current) {
@@ -149,7 +150,7 @@ export default function StudySession(props: Props) {
     <div className="session-shell">
       <div className="session-heading">
         <button className="text-button" onClick={props.onClose}>
-          <ArrowLeft size={17} /> Back to your study set
+          <ArrowLeft size={17} /> {t('Back to your study set')}{' '}
         </button>
         <span className="session-mode">
           <Sparkles size={15} />
@@ -161,32 +162,42 @@ export default function StudySession(props: Props) {
           <span className="large-mode-icon">
             <Sparkles size={30} />
           </span>
-          <span className="eyebrow">A LITTLE PRACTICE GOES A LONG WAY</span>
-          <h1>{name === 'Match it' ? 'Make the connections.' : 'Let’s see what sticks.'}</h1>
+          <span className="eyebrow">{t('A LITTLE PRACTICE GOES A LONG WAY')}</span>
+          <h1>
+            {name === t('Match it') ? t('Make the connections.') : t('Let’s see what sticks.')}
+          </h1>
           <p>
             {props.weakOnly
-              ? 'A focused round with concepts that need another look.'
+              ? t('A focused round with concepts that need another look.')
               : props.mode === 'exam'
-                ? 'Practice questions from your old tests. Write your answer, compare with related notes, and rate yourself.'
+                ? t(
+                    'Practice questions from your old tests. Write your answer, compare with related notes, and rate yourself.',
+                  )
                 : props.mode === 'match'
-                  ? 'Connect five concepts to their source definitions. Take your time; understanding comes first.'
+                  ? t(
+                      'Connect five concepts to their source definitions. Take your time; understanding comes first.',
+                    )
                   : props.mode === 'recall'
-                    ? 'Explain a concept in your own words, then compare it with the original notes.'
+                    ? t(
+                        'Explain a concept in your own words, then compare it with the original notes.',
+                      )
                     : props.mode === 'flashcards'
-                      ? 'Recall the concept, flip the card, and tell us how it went.'
-                      : 'Fill in the missing concept. Every answer comes straight from your notes.'}
+                      ? t('Recall the concept, flip the card, and tell us how it went.')
+                      : t(
+                          'Fill in the missing concept. Every answer comes straight from your notes.',
+                        )}
           </p>
           {props.mode !== 'match' && (
             <label className="session-length">
-              Session length
+              {t('Session length')}{' '}
               <select
                 value={questionCount}
                 onChange={(event) => setQuestionCount(Number(event.target.value))}
               >
-                <option value={5}>5 questions · a quick warm-up</option>
-                <option value={10}>10 questions · a focused session</option>
-                <option value={20}>20 questions · a deeper dive</option>
-                <option value={50}>50 questions · the full stretch</option>
+                <option value={5}>{t('5 questions · a quick warm-up')}</option>
+                <option value={10}>{t('10 questions · a focused session')}</option>
+                <option value={20}>{t('20 questions · a deeper dive')}</option>
+                <option value={50}>{t('50 questions · the full stretch')}</option>
               </select>
             </label>
           )}
@@ -195,36 +206,38 @@ export default function StudySession(props: Props) {
             disabled={total === 0 || (props.mode === 'match' && total < 2)}
             onClick={() => setStarted(true)}
           >
-            Start {total} {props.mode === 'match' ? 'pairs' : 'questions'}
+            {t('Start')} {total} {props.mode === 'match' ? t('pairs') : t('questions')}
             <ArrowRight size={16} />
           </button>
           {total === 0 && (
             <p className="warning-text">
               {props.mode === 'exam'
-                ? 'Upload a past test and mark its file type as “Past test” to use this mode.'
+                ? t('Upload a past test and mark its file type as “Past test” to use this mode.')
                 : props.weakOnly
-                  ? 'No weak concepts yet. Finish a quiz to find your focus areas.'
-                  : 'No usable study cards yet. Add notes with complete sentences or definitions.'}
+                  ? t('No weak concepts yet. Finish a quiz to find your focus areas.')
+                  : t(
+                      'No usable study cards yet. Add notes with complete sentences or definitions.',
+                    )}
             </p>
           )}
-          <small>Your progress is saved after each answer.</small>
+          <small>{t('Your progress is saved after each answer.')}</small>
         </div>
       ) : complete ? (
         <div className="session-intro completion">
           <span className="large-mode-icon">
             <CheckCircle2 size={34} />
           </span>
-          <span className="eyebrow">ONE STEP CLOSER</span>
-          <h1>{score === total ? 'Look at you go.' : 'That’s how learning happens.'}</h1>
+          <span className="eyebrow">{t('ONE STEP CLOSER')}</span>
+          <h1>{score === total ? t('Look at you go.') : t('That’s how learning happens.')}</h1>
           <p>
-            {score} of {total}{' '}
+            {score} {t('of')} {total}{' '}
             {props.mode === 'exam' || props.mode === 'flashcards' || props.mode === 'recall'
-              ? 'rated confident'
-              : 'correct on the first try'}
+              ? t('rated confident')
+              : t('correct on the first try')}
             .{' '}
             {score === total
-              ? 'Revisit these later to help them stick.'
-              : 'The tricky concepts are waiting in your review queue.'}
+              ? t('Revisit these later to help them stick.')
+              : t('The tricky concepts are waiting in your review queue.')}
           </p>
           <div className="completion-score">
             {Math.round((score / total) * 100)}
@@ -232,25 +245,25 @@ export default function StudySession(props: Props) {
           </div>
           <div className="button-row">
             <button className="button secondary" onClick={reset}>
-              <RotateCcw size={16} /> Another round
+              <RotateCcw size={16} /> {t('Another round')}{' '}
             </button>
             <button className="button primary" onClick={props.onClose}>
-              Back to overview
-              <ArrowRight size={16} />
+              {t('Back to overview')} <ArrowRight size={16} />
             </button>
           </div>
         </div>
       ) : props.mode === 'match' ? (
         <>
           <div className="session-top">
-            <h1>Find their other half.</h1>
+            <h1>{t('Find their other half.')}</h1>
             <span>
-              {matched.length} / {total} pairs
+              {matched.length} / {total} {t('pairs')}{' '}
             </span>
           </div>
           <p className="muted">
-            Choose a concept and its definition. A mismatch means both concepts go into your review
-            queue.
+            {t(
+              'Choose a concept and its definition. A mismatch means both concepts go into your review queue.',
+            )}{' '}
           </p>
           <div className="match-grid">
             <div>
@@ -290,7 +303,7 @@ export default function StudySession(props: Props) {
           </div>
           {mismatch && (
             <p role="status" className="match-feedback">
-              Almost. Try a different connection.
+              {t('Almost. Try a different connection.')}{' '}
             </p>
           )}
         </>
@@ -308,17 +321,17 @@ export default function StudySession(props: Props) {
           <div className={`question-panel ${props.mode === 'flashcards' ? 'flashcard-panel' : ''}`}>
             <span className="eyebrow">
               {props.mode === 'exam'
-                ? 'YOUR PAST PAPER'
+                ? t('YOUR PAST PAPER')
                 : props.mode === 'quiz'
-                  ? 'COMPLETE THE IDEA'
-                  : 'RECALL BEFORE YOU REVEAL'}
+                  ? t('COMPLETE THE IDEA')
+                  : t('RECALL BEFORE YOU REVEAL')}
             </span>
             <h2>
               {props.mode === 'exam'
                 ? exam.prompt
                 : props.mode === 'quiz'
                   ? card.prompt
-                  : `What do you remember about ${card.term}?`}
+                  : t('What do you remember about {term}?', { term: card.term })}
             </h2>
             {props.mode === 'quiz' && (
               <div className="quiz-options">
@@ -341,11 +354,11 @@ export default function StudySession(props: Props) {
                 ) : (
                   <>
                     <p className="muted">
-                      This set has one answer concept. Try recalling it yourself.
+                      {t('This set has one answer concept. Try recalling it yourself.')}{' '}
                     </p>
                     <input
                       value={written}
-                      aria-label="Your quiz answer"
+                      aria-label={t('Your quiz answer')}
                       onChange={(event) => setWritten(event.target.value)}
                       disabled={selected !== null}
                     />
@@ -360,7 +373,7 @@ export default function StudySession(props: Props) {
                         );
                       }}
                     >
-                      Check answer
+                      {t('Check answer')}{' '}
                     </button>
                   </>
                 )}
@@ -369,11 +382,11 @@ export default function StudySession(props: Props) {
             {(props.mode === 'recall' || props.mode === 'exam') && (
               <textarea
                 autoFocus
-                aria-label="Your written answer"
+                aria-label={t('Your written answer')}
                 value={written}
                 onChange={(event) => setWritten(event.target.value)}
                 disabled={revealed}
-                placeholder="Close your notes. Put the idea into your own words…"
+                placeholder={t('Close your notes. Put the idea into your own words…')}
               />
             )}
             {props.mode !== 'quiz' && !revealed && (
@@ -383,7 +396,7 @@ export default function StudySession(props: Props) {
                 onClick={() => setRevealed(true)}
               >
                 <Eye size={17} />
-                {props.mode === 'flashcards' ? 'Flip card' : 'Compare with notes'}
+                {props.mode === 'flashcards' ? t('Flip card') : t('Compare with notes')}
               </button>
             )}
             {(revealed || selected !== null) && (
@@ -391,9 +404,9 @@ export default function StudySession(props: Props) {
                 <strong>
                   {props.mode === 'quiz'
                     ? selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase()
-                      ? 'That’s it!'
-                      : `The answer is ${card.answer}.`
-                    : 'Compare with the source'}
+                      ? t('That’s it!')
+                      : t('The answer is {answer}.', { answer: card.answer })
+                    : t('Compare with the source')}
                 </strong>
                 {props.mode === 'exam' ? (
                   related.length ? (
@@ -402,14 +415,15 @@ export default function StudySession(props: Props) {
                         {relatedCard.evidence}
                         <small>
                           {deck.sources.find((s) => s.id === relatedCard.sourceId)?.name} ·{' '}
-                          {relatedCard.location}
+                          {locationLabel(relatedCard.location)}
                         </small>
                       </p>
                     ))
                   ) : (
                     <p>
-                      No clear matching note was found. Compare with your course material or marking
-                      guide; this app does not invent an answer key.
+                      {t(
+                        'No clear matching note was found. Compare with your course material or marking guide; this app does not invent an answer key.',
+                      )}{' '}
                     </p>
                   )
                 ) : (
@@ -421,11 +435,13 @@ export default function StudySession(props: Props) {
                       keywords(card.evidence).filter((token) => keywords(written).includes(token))
                         .length
                     }{' '}
-                    source keywords appear in your answer. This is a hint, not an automatic grade.
+                    {t(
+                      'source keywords appear in your answer. This is a hint, not an automatic grade.',
+                    )}{' '}
                   </small>
                 )}
                 {props.mode === 'exam' && (
-                  <small>Related notes are suggestions, not a verified marking guide.</small>
+                  <small>{t('Related notes are suggestions, not a verified marking guide.')}</small>
                 )}
               </div>
             )}
@@ -439,23 +455,23 @@ export default function StudySession(props: Props) {
                     next(selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase(), false)
                   }
                 >
-                  {index + 1 === total ? 'See results' : 'Next question'}
+                  {index + 1 === total ? t('See results') : t('Next question')}
                   <ArrowRight size={16} />
                 </button>
               ) : (
                 <>
-                  <p className="muted">How did you do?</p>
+                  <p className="muted">{t('How did you do?')}</p>
                   <button
                     className="button secondary"
                     onClick={() => next(false, props.mode !== 'exam')}
                   >
-                    <RotateCcw size={16} /> Needs practice
+                    <RotateCcw size={16} /> {t('Needs practice')}{' '}
                   </button>
                   <button
                     className="button primary"
                     onClick={() => next(true, props.mode !== 'exam')}
                   >
-                    <Check size={16} /> Got it
+                    <Check size={16} /> {t('Got it')}{' '}
                   </button>
                 </>
               )}
@@ -468,20 +484,21 @@ export default function StudySession(props: Props) {
               onToggle={(event) => setSourceOpen(event.currentTarget.open)}
             >
               <summary>
-                <Flag size={14} /> Source · {deck.sources.find((s) => s.id === card.sourceId)?.name}{' '}
-                · {card.location}
+                <Flag size={14} /> {t('Source ·')}{' '}
+                {deck.sources.find((s) => s.id === card.sourceId)?.name} ·{' '}
+                {locationLabel(card.location)}
               </summary>
               <p>{card.evidence}</p>
             </details>
           )}
           {props.mode === 'flashcards' && (
-            <small className="keyboard-hint">Tip: press space to flip the card</small>
+            <small className="keyboard-hint">{t('Tip: press space to flip the card')}</small>
           )}
         </>
       )}
       {started && !complete && (
         <button className="text-button end-session" onClick={props.onClose}>
-          <X size={15} /> End session
+          <X size={15} /> {t('End session')}{' '}
         </button>
       )}
     </div>

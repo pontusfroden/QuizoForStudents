@@ -38,6 +38,7 @@ import { buildStudyContent, recordReview, stats } from './lib/study';
 import { downloadBackup, loadLibrary, saveLibrary, validateBackup } from './lib/storage';
 import UploadDialog from './components/UploadDialog';
 import StudySession from './components/StudySession';
+import { t, useLocale, setLocale, locationLabel, type Locale } from './lib/i18n';
 
 const modes: {
   id: Mode;
@@ -90,6 +91,10 @@ const modes: {
 ];
 
 export default function App() {
+  const locale = useLocale();
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
   const [library, setLibrary] = useState<Library | null>(null);
   const [view, setView] = useState<View>('overview');
   const [upload, setUpload] = useState<'new' | 'add' | null>(null);
@@ -145,7 +150,7 @@ export default function App() {
           q<span>•</span>
         </span>
         <LoaderCircle className="spin" />
-        <p>Making a little room for learning…</p>
+        <p>{t('Making a little room for learning…')}</p>
       </div>
     );
   const deck = library.decks.find((item) => item.id === library.activeId);
@@ -189,8 +194,28 @@ export default function App() {
   function saveUploaded(title: string, sources: StudySource[]) {
     if (upload === 'add' && deck)
       updateDeck((current) => {
-        const combined = [...current.sources, ...sources];
-        return { ...current, title, sources: combined, ...buildStudyContent(combined) };
+        const replacements = sources.map((source) => ({
+          ...source,
+          id: current.sources.find((existing) => existing.name === source.name)?.id ?? source.id,
+        }));
+        const combined = [
+          ...current.sources.filter(
+            (source) => !replacements.some((incoming) => incoming.name === source.name),
+          ),
+          ...replacements,
+        ];
+        const content = buildStudyContent(combined);
+        return {
+          ...current,
+          title,
+          sources: combined,
+          ...content,
+          progress: Object.fromEntries(
+            Object.entries(current.progress).filter(([id]) =>
+              content.cards.some((card) => card.id === id),
+            ),
+          ),
+        };
       });
     else {
       const created: StudyDeck = {
@@ -211,7 +236,7 @@ export default function App() {
     }
     setUpload(null);
     navigate('overview');
-    setToast('Your study set is ready. Let’s make it stick.');
+    setToast(t('Your study set is ready. Let’s make it stick.'));
   }
   function removeSource(sourceId: string) {
     updateDeck((current) => {
@@ -230,7 +255,7 @@ export default function App() {
     });
     setConfirmDelete(null);
     setOpenSource(null);
-    setToast('Material removed from this study set.');
+    setToast(t('Material removed from this study set.'));
   }
   async function restoreBackup(file: File) {
     try {
@@ -254,7 +279,7 @@ export default function App() {
         };
       });
       navigate('overview');
-      setToast('Backup restored. Your existing study sets were kept.');
+      setToast(t('Backup restored. Your existing study sets were kept.'));
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Could not restore this backup.');
     }
@@ -302,16 +327,16 @@ export default function App() {
             setMobileMenu(false);
           }}
         >
-          <Plus size={18} /> New study set
+          <Plus size={18} /> {t('New study set')}{' '}
         </button>
-        <span className="nav-label">YOUR WORKSPACE</span>
+        <span className="nav-label">{t('YOUR WORKSPACE')}</span>
         <nav aria-label="Main navigation">
           {(
             [
-              { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-              { id: 'materials', label: 'My materials', icon: FolderOpen },
-              { id: 'study', label: 'Study modes', icon: Layers3 },
-              { id: 'progress', label: 'My progress', icon: TrendingUp },
+              { id: 'overview', label: t('Overview'), icon: LayoutDashboard },
+              { id: 'materials', label: t('My materials'), icon: FolderOpen },
+              { id: 'study', label: t('Study modes'), icon: Layers3 },
+              { id: 'progress', label: t('My progress'), icon: TrendingUp },
             ] as const
           ).map((item) => (
             <button
@@ -328,10 +353,10 @@ export default function App() {
           ))}
         </nav>
         <div className="set-list-heading">
-          <span className="nav-label">STUDY SETS</span>
+          <span className="nav-label">{t('STUDY SETS')}</span>
           <button
             className="icon-button"
-            aria-label="Create another study set"
+            aria-label={t('Create another study set')}
             onClick={() => setUpload('new')}
           >
             <Plus size={16} />
@@ -358,11 +383,11 @@ export default function App() {
             <span>
               <Leaf size={19} />
             </span>
-            <h4>Progress, a little at a time.</h4>
-            <p>Ten focused minutes can be a pretty good start.</p>
+            <h4>{t('Progress, a little at a time.')}</h4>
+            <p>{t('Ten focused minutes can be a pretty good start.')}</p>
           </div>
           <button className="nav-item" onClick={() => setHelp(true)}>
-            <CircleHelp size={19} /> How Quizo works
+            <CircleHelp size={19} /> {t('How Quizo works')}{' '}
           </button>
           <a
             className="github-link"
@@ -370,14 +395,14 @@ export default function App() {
             target="_blank"
             rel="noreferrer"
           >
-            Made for curious minds <ArrowRight size={13} />
+            {t('Made for curious minds')} <ArrowRight size={13} />
           </a>
         </div>
       </aside>
       {mobileMenu && (
         <button
           className="mobile-overlay"
-          aria-label="Close navigation"
+          aria-label={t('Close navigation')}
           onClick={() => setMobileMenu(false)}
         />
       )}
@@ -386,41 +411,50 @@ export default function App() {
           <div className="breadcrumb">
             <button
               className="icon-button mobile-menu-button"
-              aria-label="Open navigation"
+              aria-label={t('Open navigation')}
               onClick={() => setMobileMenu(true)}
             >
               <Menu size={21} />
             </button>
-            <span>My workspace</span>
+            <span>{t('My workspace')}</span>
             <span className="breadcrumb-slash">/</span>
             <strong>
               {view === 'materials'
-                ? 'My materials'
+                ? t('My materials')
                 : view === 'study'
-                  ? 'Study modes'
+                  ? t('Study modes')
                   : view === 'progress'
-                    ? 'My progress'
-                    : 'Overview'}
+                    ? t('My progress')
+                    : t('Overview')}
             </strong>
           </div>
           <div className="topbar-actions">
             <label className="search-box">
               <Search size={17} />
               <input
-                aria-label="Search your materials"
+                aria-label={t('Search your materials')}
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
                   if (session) setSession(null);
                   if (view !== 'materials') setView('materials');
                 }}
-                placeholder="Find a concept or file…"
+                placeholder={t('Find a concept or file…')}
               />
               <span>⌕</span>
             </label>
+            <select
+              className="language-select"
+              aria-label={t('Interface language')}
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as Locale)}
+            >
+              <option value="en">{t('English')}</option>
+              <option value="sv">Svenska</option>
+            </select>
             <button
               className="avatar"
-              aria-label="How your local workspace works"
+              aria-label={t('How your local workspace works')}
               onClick={() => setHelp(true)}
             >
               S<span />
@@ -432,17 +466,17 @@ export default function App() {
             <div className="inline-error" role="alert">
               {storageError}
               <button className="text-button" onClick={() => downloadBackup(library)}>
-                Export backup
+                {t('Export backup')}{' '}
               </button>
             </div>
           )}
           {!deck ? (
             <div className="empty-state">
               <LibraryBig size={42} />
-              <h1>A fresh start for your next test.</h1>
-              <p>Add your first study set to turn notes into practice.</p>
+              <h1>{t('A fresh start for your next test.')}</h1>
+              <p>{t('Add your first study set to turn notes into practice.')}</p>
               <button className="button primary" onClick={() => setUpload('new')}>
-                <Plus size={18} /> Create a study set
+                <Plus size={18} /> {t('Create a study set')}{' '}
               </button>
             </div>
           ) : session ? (
@@ -476,39 +510,39 @@ export default function App() {
                 <div>
                   <div className="eyebrow">
                     {view === 'overview'
-                      ? 'A LITTLE PRACTICE. A LOT MORE CONFIDENCE.'
+                      ? t('A LITTLE PRACTICE. A LOT MORE CONFIDENCE.')
                       : deck.title.toUpperCase()}
                   </div>
                   <h1>
                     {view === 'overview'
-                      ? 'Good things take a little practice.'
+                      ? t('Good things take a little practice.')
                       : view === 'materials'
-                        ? 'Your knowledge starts here.'
+                        ? t('Your knowledge starts here.')
                         : view === 'study'
-                          ? 'Find your way to “I get it”.'
-                          : 'Every little step counts.'}
+                          ? t('Find your way to “I get it”.')
+                          : t('Every little step counts.')}
                   </h1>
                   <p>
                     {view === 'overview'
-                      ? 'Big test coming up? Let’s break it into small wins.'
+                      ? t('Big test coming up? Let’s break it into small wins.')
                       : view === 'materials'
-                        ? 'Your notes, slides, and past papers. All working together.'
+                        ? t('Your notes, slides, and past papers. All working together.')
                         : view === 'study'
-                          ? 'Different ways to practice. The same next breakthrough.'
-                          : 'See what’s sticking and what needs another look.'}
+                          ? t('Different ways to practice. The same next breakthrough.')
+                          : t('See what’s sticking and what needs another look.')}
                   </p>
                 </div>
                 <button className="button secondary compact" onClick={() => setUpload('add')}>
-                  <Plus size={17} /> Add materials
+                  <Plus size={17} /> {t('Add materials')}{' '}
                 </button>
               </div>
               {deck.isDemo && (
                 <div className="demo-banner">
                   <span>
-                    <Sparkles size={15} /> You’re exploring a sample biology set.
+                    <Sparkles size={15} /> {t('You’re exploring a sample biology set.')}{' '}
                   </span>
                   <button onClick={() => setUpload('new')}>
-                    Try your own notes <ArrowRight size={14} />
+                    {t('Try your own notes')} <ArrowRight size={14} />
                   </button>
                 </div>
               )}
@@ -517,22 +551,22 @@ export default function App() {
                   <section className="hero">
                     <div className="hero-copy">
                       <span className="hero-badge">
-                        <Sparkles size={14} /> FROM NOTES TO KNOW-HOW
+                        <Sparkles size={14} /> {t('FROM NOTES TO KNOW-HOW')}{' '}
                       </span>
                       <h2>
-                        Big notes.
-                        <br />
-                        Small steps.
-                        <span className="hero-underline" />
+                        {t('Big notes.')} <br />
+                        {t('Small steps.')} <span className="hero-underline" />
                       </h2>
                       <p>
-                        Your material, turned into moments that stick.
-                        <br />A little less overwhelm. A lot more understanding.
+                        {t('Your material, turned into moments that stick.')} <br />
+                        {t('A little less overwhelm. A lot more understanding.')}{' '}
                       </p>
                       <button className="button hero-button" onClick={() => startSession('quiz')}>
-                        Let’s get learning <ArrowRight size={17} />
+                        {t('Let’s get learning')} <ArrowRight size={17} />
                       </button>
-                      <span className="hero-footnote">Your next small win is one quiz away.</span>
+                      <span className="hero-footnote">
+                        {t('Your next small win is one quiz away.')}
+                      </span>
                     </div>
                     <div className="hero-art" aria-hidden="true">
                       <span className="orbit orbit-one" />
@@ -541,25 +575,24 @@ export default function App() {
                       <span className="art-spark two">✧</span>
                       <span className="art-dot" />
                       <div className="floating-note back-note">
-                        <span>little steps</span>
+                        <span>{t('little steps')}</span>
                         <div />
                         <div />
                         <div />
                       </div>
                       <div className="floating-note front-note">
                         <span className="note-label">
-                          <span /> A QUICK CHECK-IN
+                          <span /> {t('A QUICK CHECK-IN')}{' '}
                         </span>
                         <strong>
-                          What if learning
-                          <br />
-                          felt a little lighter?
+                          {t('What if learning')} <br />
+                          {t('felt a little lighter?')}{' '}
                         </strong>
                         <div className="note-answer">
                           <span>
                             <Check size={14} />
                           </span>{' '}
-                          One idea at a time.
+                          {t('One idea at a time.')}{' '}
                         </div>
                         <div className="mini-card-footer">
                           <span>01 / ∞</span>
@@ -570,7 +603,7 @@ export default function App() {
                         <span>
                           <Check size={13} />
                         </span>{' '}
-                        You’ve got this.
+                        {t('You’ve got this.')}{' '}
                       </div>
                     </div>
                   </section>
@@ -579,34 +612,34 @@ export default function App() {
                       icon={FileText}
                       tone="purple"
                       value={String(deck.sources.length)}
-                      label="Materials, connected"
+                      label={t('Materials, connected')}
                     />
                     <Stat
                       icon={Layers3}
                       tone="orange"
                       value={String(deck.cards.length)}
-                      label="Ideas to explore"
+                      label={t('Ideas to explore')}
                     />
                     <Stat
                       icon={Target}
                       tone="green"
                       value={`${deckStats.mastery}%`}
-                      label="Concepts becoming familiar"
+                      label={t('Concepts becoming familiar')}
                     />
                     <Stat
                       icon={Flame}
                       tone="pink"
                       value={String(deck.sessions.length)}
-                      label="Sessions under your belt"
+                      label={t('Sessions under your belt')}
                     />
                   </div>
                   <div className="section-heading">
                     <div>
-                      <h2>A way to learn for every mood.</h2>
-                      <p>Start small. Switch it up. Find what clicks.</p>
+                      <h2>{t('A way to learn for every mood.')}</h2>
+                      <p>{t('Start small. Switch it up. Find what clicks.')}</p>
                     </div>
                     <button className="text-button" onClick={() => navigate('study')}>
-                      All study modes <ArrowRight size={16} />
+                      {t('All study modes')} <ArrowRight size={16} />
                     </button>
                   </div>
                   <div className="mode-grid overview-modes">
@@ -617,9 +650,9 @@ export default function App() {
                   <div className="overview-bottom">
                     <section className="material-preview">
                       <div className="section-heading">
-                        <h2>Your current chapter.</h2>
+                        <h2>{t('Your current chapter.')}</h2>
                         <button className="text-button" onClick={() => navigate('materials')}>
-                          View all <ArrowRight size={15} />
+                          {t('View all')} <ArrowRight size={15} />
                         </button>
                       </div>
                       <div className="current-set">
@@ -632,17 +665,17 @@ export default function App() {
                           <div className="set-meta">
                             <span>
                               <FileText size={13} />
-                              {deck.sources.length} materials
+                              {deck.sources.length} {t('materials')}{' '}
                             </span>
                             <span>
                               <Layers3 size={13} />
-                              {deck.cards.length} ideas
+                              {deck.cards.length} {t('ideas')}{' '}
                             </span>
                           </div>
                         </div>
                         <button
                           className="icon-button"
-                          aria-label="View study set materials"
+                          aria-label={t('View study set materials')}
                           onClick={() => navigate('materials')}
                         >
                           <MoreHorizontal size={20} />
@@ -650,9 +683,13 @@ export default function App() {
                       </div>
                       <div className="set-progress-label">
                         <span>
-                          {deckStats.reviewed} of {deck.cards.length} concepts explored
+                          {deckStats.reviewed} {t('of')} {deck.cards.length}{' '}
+                          {t('concepts explored')}{' '}
                         </span>
-                        <strong>{deckStats.mastery}% familiar</strong>
+                        <strong>
+                          {deckStats.mastery}
+                          {t('% familiar')}
+                        </strong>
                       </div>
                       <div className="progress-track">
                         <span style={{ width: `${deckStats.mastery}%` }} />
@@ -661,7 +698,7 @@ export default function App() {
                         className="text-button continue-button"
                         onClick={() => startSession('flashcards')}
                       >
-                        Pick up a little knowledge <ArrowRight size={15} />
+                        {t('Pick up a little knowledge')} <ArrowRight size={15} />
                       </button>
                     </section>
                     <section className="focus-panel">
@@ -669,18 +706,25 @@ export default function App() {
                         <Target size={21} />
                       </span>
                       <h3>
-                        {deckStats.weak ? 'A second look goes a long way.' : 'Your next small win.'}
+                        {deckStats.weak
+                          ? t('A second look goes a long way.')
+                          : t('Your next small win.')}
                       </h3>
                       <p>
                         {deckStats.weak
-                          ? `${deckStats.weak} concepts could use another visit. Let’s give them a little attention.`
-                          : 'Start a quick quiz. We’ll remember the tricky bits so you know what to practice next.'}
+                          ? t(
+                              '{count} concepts could use another visit. Let’s give them a little attention.',
+                              { count: deckStats.weak },
+                            )
+                          : t(
+                              'Start a quick quiz. We’ll remember the tricky bits so you know what to practice next.',
+                            )}
                       </p>
                       <button
                         className="text-button"
                         onClick={() => startSession('quiz', deckStats.weak > 0)}
                       >
-                        {deckStats.weak ? 'Review tricky concepts' : 'Try a quick quiz'}
+                        {deckStats.weak ? t('Review tricky concepts') : t('Try a quick quiz')}
                         <ArrowRight size={15} />
                       </button>
                     </section>
@@ -699,10 +743,11 @@ export default function App() {
                       <Clock3 size={24} />
                     </span>
                     <div>
-                      <h3>A rhythm that works for you.</h3>
+                      <h3>{t('A rhythm that works for you.')}</h3>
                       <p>
-                        Quiz yourself, revisit tricky concepts, and come back tomorrow. Your review
-                        queue puts missed answers and due cards first.
+                        {t(
+                          'Quiz yourself, revisit tricky concepts, and come back tomorrow. Your review queue puts missed answers and due cards first.',
+                        )}{' '}
                       </p>
                     </div>
                     <button
@@ -710,8 +755,7 @@ export default function App() {
                       disabled={!deckStats.weak}
                       onClick={() => startSession('quiz', true)}
                     >
-                      Review {deckStats.weak} tricky concepts
-                      <ArrowRight size={16} />
+                      {t('Review')} {deckStats.weak} {t('tricky concepts')} <ArrowRight size={16} />
                     </button>
                   </div>
                 </>
@@ -720,18 +764,18 @@ export default function App() {
                 <>
                   <div className="materials-toolbar">
                     <span>
-                      {deck.sources.length} materials ·{' '}
+                      {deck.sources.length} {t('materials ·')}{' '}
                       {deck.sources
                         .reduce((sum, source) => sum + source.wordCount, 0)
                         .toLocaleString()}{' '}
-                      words
+                      {t('words')}{' '}
                     </span>
                     <div className="button-row">
                       <button className="text-button" onClick={() => downloadBackup(library)}>
-                        <ArrowDownToLine size={15} /> Export backup
+                        <ArrowDownToLine size={15} /> {t('Export backup')}{' '}
                       </button>
                       <button className="text-button" onClick={() => backupInput.current?.click()}>
-                        <ArrowUpFromLine size={15} /> Restore backup
+                        <ArrowUpFromLine size={15} /> {t('Restore backup')}{' '}
                       </button>
                     </div>
                   </div>
@@ -747,16 +791,35 @@ export default function App() {
                         <div className="file-info">
                           <h3>{source.name}</h3>
                           <p>
-                            {source.wordCount.toLocaleString()} words · {source.blocks.length}{' '}
-                            {source.format === 'PDF'
-                              ? 'pages'
-                              : source.format === 'PPTX'
-                                ? 'slides'
-                                : 'sections'}
+                            {source.wordCount.toLocaleString()} {t('words ·')}{' '}
+                            {source.coverage ? (
+                              t('{read} of {total} pages read', {
+                                read: source.coverage.textPages + source.coverage.ocrPages,
+                                total: source.coverage.totalPages,
+                              })
+                            ) : (
+                              <>
+                                {source.blocks.length}{' '}
+                                {source.format === 'PDF'
+                                  ? t('pages')
+                                  : source.format === 'PPTX'
+                                    ? t('slides')
+                                    : t('sections')}
+                              </>
+                            )}
+                            {!!source.coverage?.unreadPages.length && (
+                              <span className="warning-text">
+                                {' '}
+                                ·{' '}
+                                {t('{count} pages need attention', {
+                                  count: source.coverage.unreadPages.length,
+                                })}
+                              </span>
+                            )}
                             {source.warnings.length > 0 && (
                               <span className="warning-text">
                                 {' '}
-                                · {source.warnings.length} extraction notes
+                                · {source.warnings.length} {t('extraction notes')}{' '}
                               </span>
                             )}
                           </p>
@@ -785,14 +848,14 @@ export default function App() {
                             });
                           }}
                         >
-                          <option value="notes">Study notes</option>
-                          <option value="exam">Past test</option>
+                          <option value="notes">{t('Study notes')}</option>
+                          <option value="exam">{t('Past test')}</option>
                         </select>
                         <button
                           className="button secondary compact"
                           onClick={() => setOpenSource(openSource === source.id ? null : source.id)}
                         >
-                          {openSource === source.id ? 'Close' : 'Read text'}
+                          {openSource === source.id ? t('Close') : t('Read text')}
                           <ChevronDown size={14} />
                         </button>
                         <button
@@ -811,7 +874,12 @@ export default function App() {
                             ))}
                             {source.blocks.map((block, index) => (
                               <div key={index}>
-                                <span className="eyebrow">{block.label}</span>
+                                <span className="eyebrow">{locationLabel(block.label)}</span>
+                                {block.method === 'ocr' && (
+                                  <small className="warning-text">
+                                    {t('Scan text · review against the original')}
+                                  </small>
+                                )}
                                 <p>{block.text}</p>
                               </div>
                             ))}
@@ -819,18 +887,18 @@ export default function App() {
                         )}
                         {confirmDelete === source.id && (
                           <div className="delete-confirm">
-                            Remove this material and its study cards?
+                            {t('Remove this material and its study cards?')}{' '}
                             <button
                               className="button secondary compact"
                               onClick={() => setConfirmDelete(null)}
                             >
-                              Keep it
+                              {t('Keep it')}{' '}
                             </button>
                             <button
                               className="button danger compact"
                               onClick={() => removeSource(source.id)}
                             >
-                              Remove material
+                              {t('Remove material')}{' '}
                             </button>
                           </div>
                         )}
@@ -841,25 +909,29 @@ export default function App() {
                     <div className="empty-state small">
                       <FolderOpen size={32} />
                       <h3>
-                        {query ? 'No matching materials yet.' : 'Add something worth learning.'}
+                        {query
+                          ? t('No matching materials yet.')
+                          : t('Add something worth learning.')}
                       </h3>
                       <p>
                         {query
-                          ? 'Try another concept or file name.'
-                          : 'Upload notes to create study cards, or old tests for exam practice.'}
+                          ? t('Try another concept or file name.')
+                          : t(
+                              'Upload notes to create study cards, or old tests for exam practice.',
+                            )}
                       </p>
                       <button className="button secondary" onClick={() => setUpload('add')}>
-                        <Plus size={16} /> Add materials
+                        <Plus size={16} /> {t('Add materials')}{' '}
                       </button>
                     </div>
                   )}
                   <div className="section-heading ideas-heading">
                     <div>
-                      <h2>{query ? 'Matching ideas' : 'Ideas from your notes'}</h2>
-                      <p>Source excerpts you can check, practice, and revisit.</p>
+                      <h2>{query ? t('Matching ideas') : t('Ideas from your notes')}</h2>
+                      <p>{t('Source excerpts you can check, practice, and revisit.')}</p>
                     </div>
                     <span className="muted">
-                      Showing {filteredCards.length} of {deck.cards.length}
+                      {t('Showing')} {filteredCards.length} {t('of')} {deck.cards.length}
                     </span>
                   </div>
                   <div className="ideas-grid">
@@ -877,8 +949,9 @@ export default function App() {
                   <div className="privacy-note">
                     <ShieldCheck size={18} />
                     <p>
-                      Materials and progress stay in this browser. Export a backup to move them to
-                      another device. Clearing browser data removes local study sets.
+                      {t(
+                        'Materials and progress stay in this browser. Export a backup to move them to another device. Clearing browser data removes local study sets.',
+                      )}{' '}
                     </p>
                   </div>
                 </>
@@ -890,31 +963,31 @@ export default function App() {
                       icon={Target}
                       tone="purple"
                       value={`${deckStats.mastery}%`}
-                      label="Concepts becoming familiar"
+                      label={t('Concepts becoming familiar')}
                     />
                     <Stat
                       icon={Check}
                       tone="green"
                       value={`${deckStats.accuracy}%`}
-                      label="Correct or rated confident"
+                      label={t('Correct or rated confident')}
                     />
                     <Stat
                       icon={Layers3}
                       tone="orange"
                       value={`${deckStats.reviewed}/${deck.cards.length}`}
-                      label="Concepts explored"
+                      label={t('Concepts explored')}
                     />
                     <Stat
                       icon={Clock3}
                       tone="blue"
                       value={String(deckStats.due)}
-                      label="New or ready to revisit"
+                      label={t('New or ready to revisit')}
                     />
                   </div>
                   <div className="progress-columns">
                     <section className="panel">
                       <div className="section-heading">
-                        <h2>A little extra attention.</h2>
+                        <h2>{t('A little extra attention.')}</h2>
                         <Target size={19} />
                       </div>
                       {focusCards.length ? (
@@ -930,7 +1003,7 @@ export default function App() {
                               </div>
                               <span>
                                 {deck.progress[card.id].correct}/{deck.progress[card.id].attempts}{' '}
-                                confident
+                                {t('confident')}{' '}
                               </span>
                             </div>
                           ))}
@@ -938,8 +1011,7 @@ export default function App() {
                             className="button primary"
                             onClick={() => startSession('quiz', true)}
                           >
-                            Practice tricky concepts
-                            <ArrowRight size={16} />
+                            {t('Practice tricky concepts')} <ArrowRight size={16} />
                           </button>
                         </>
                       ) : (
@@ -947,20 +1019,19 @@ export default function App() {
                           <Leaf size={30} />
                           <h3>
                             {deckStats.attempts
-                              ? 'Nothing tricky waiting here.'
-                              : 'Your first session starts the story.'}
+                              ? t('Nothing tricky waiting here.')
+                              : t('Your first session starts the story.')}
                           </h3>
-                          <p>Take a quiz to find out what’s sticking.</p>
+                          <p>{t('Take a quiz to find out what’s sticking.')}</p>
                           <button className="button secondary" onClick={() => startSession('quiz')}>
-                            Start a quiz
-                            <ArrowRight size={16} />
+                            {t('Start a quiz')} <ArrowRight size={16} />
                           </button>
                         </div>
                       )}
                     </section>
                     <section className="panel">
                       <div className="section-heading">
-                        <h2>Your recent small wins.</h2>
+                        <h2>{t('Your recent small wins.')}</h2>
                         <Flame size={19} />
                       </div>
                       {deck.sessions.length ? (
@@ -994,8 +1065,8 @@ export default function App() {
                       ) : (
                         <div className="empty-state small">
                           <Clock3 size={30} />
-                          <h3>A blank page, full of possibilities.</h3>
-                          <p>Completed sessions will show up here.</p>
+                          <h3>{t('A blank page, full of possibilities.')}</h3>
+                          <p>{t('Completed sessions will show up here.')}</p>
                         </div>
                       )}
                     </section>
@@ -1003,9 +1074,9 @@ export default function App() {
                   <div className="privacy-note">
                     <Brain size={20} />
                     <p>
-                      “Familiar” means two confident reviews in a row. These practice stats include
-                      self-ratings and aren’t a prediction of your test score. Past-paper
-                      self-ratings are recorded in session history.
+                      {t(
+                        '“Familiar” means two confident reviews in a row. These practice stats include self-ratings and aren’t a prediction of your test score. Past-paper self-ratings are recorded in session history.',
+                      )}{' '}
                     </p>
                   </div>
                 </>
@@ -1014,9 +1085,9 @@ export default function App() {
           )}
           <footer className="main-footer">
             <span>
-              <span className="footer-dot" /> Your pace. Your progress.
+              <span className="footer-dot" /> {t('Your pace. Your progress.')}{' '}
             </span>
-            <span>Made for the way you learn.</span>
+            <span>{t('Made for the way you learn.')}</span>
           </footer>
         </main>
       </div>
@@ -1032,7 +1103,7 @@ export default function App() {
         type="file"
         accept=".json"
         className="visually-hidden"
-        aria-label="Restore Quizo backup"
+        aria-label={t('Restore Quizo backup')}
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) void restoreBackup(file);
@@ -1044,7 +1115,7 @@ export default function App() {
           {toast}
           <button
             className="icon-button"
-            aria-label="Dismiss notification"
+            aria-label={t('Dismiss notification')}
             onClick={() => setToast('')}
           >
             <X size={15} />
@@ -1091,9 +1162,9 @@ function ModeCard({ mode, onClick }: { mode: (typeof modes)[number]; onClick: ()
           <ArrowRight size={18} />
         </span>
       </div>
-      <span className="mode-tag">{mode.tag}</span>
-      <h3>{mode.title}</h3>
-      <p>{mode.description}</p>
+      <span className="mode-tag">{t(mode.tag)}</span>
+      <h3>{t(mode.title)}</h3>
+      <p>{t(mode.description)}</p>
     </button>
   );
 }
@@ -1105,47 +1176,49 @@ function HelpDialog({ onClose, onExport }: { onClose: () => void; onExport: () =
   return (
     <dialog ref={ref} className="help-dialog" onCancel={onClose} aria-labelledby="help-title">
       <div className="dialog-header">
-        <h2 id="help-title">A little guide to Quizo.</h2>
-        <button className="icon-button" aria-label="Close help" onClick={onClose}>
+        <h2 id="help-title">{t('A little guide to Quizo.')}</h2>
+        <button className="icon-button" aria-label={t('Close help')} onClick={onClose}>
           <X size={20} />
         </button>
       </div>
       <div className="help-content">
         <p>
-          <strong>1. Bring your materials.</strong> Create a study set with PDFs, Word documents,
-          PowerPoint slides, or text. Mark old tests as “Past test”. Check the extracted text in My
-          materials.
+          <strong>{t('1. Bring your materials.')}</strong>{' '}
+          {t(
+            'Create a study set with PDFs, Word documents, PowerPoint slides, or text. Mark old tests as “Past test”. Check the extracted text in My materials.',
+          )}{' '}
         </p>
         <p>
-          <strong>2. Practice actively.</strong> Quizzes remove a key concept from a source
-          sentence. Flashcards, matching, and written recall help you revisit those same ideas in
-          different ways. Past-paper practice shows possible related notes for you to compare.
+          <strong>{t('2. Practice actively.')}</strong>{' '}
+          {t(
+            'Quizzes remove a key concept from a source sentence. Flashcards, matching, and written recall help you revisit those same ideas in different ways. Past-paper practice shows possible related notes for you to compare.',
+          )}{' '}
         </p>
         <p>
-          <strong>3. Come back to tricky bits.</strong> Missed concepts appear in your review queue.
-          Two confident reviews make a concept familiar. Confident cards are scheduled for later;
-          missed cards return sooner.
+          <strong>{t('3. Come back to tricky bits.')}</strong>{' '}
+          {t(
+            'Missed concepts appear in your review queue. Two confident reviews make a concept familiar. Confident cards are scheduled for later; missed cards return sooner.',
+          )}{' '}
         </p>
         <p>
-          <strong>Your workspace belongs to this browser.</strong> No sign-in or cloud upload.
-          Export a backup before clearing browser data or switching devices. Files are processed
-          locally; only the extracted text is saved.
+          <strong>{t('Your workspace belongs to this browser.')}</strong>{' '}
+          {t(
+            'No sign-in or cloud upload. Export a backup before clearing browser data or switching devices. Files are processed locally; only the extracted text is saved.',
+          )}{' '}
         </p>
         <p>
-          <strong>This first version uses text extraction and rules.</strong> It doesn’t yet use AI
-          to understand full documents, generate reasoning questions, or check answers. Image-only
-          scans, diagrams, handwritten notes, legacy DOC/PPT files, and slide speaker notes need
-          another format. Short slide fragments may create few cards; complete sentences work best.
-          Up to 500 source-based cards are distributed across your materials.
+          <strong>{t('This first version uses text extraction and rules.')}</strong>{' '}
+          {t(
+            'It doesn’t yet use AI to understand full documents, generate reasoning questions, or check answers. Image-only scans now use local OCR in Swedish and English. Handwriting, diagrams, formulas, legacy DOC/PPT files, and slide speaker notes may need manual notes or another format. Short slide fragments may create few cards; complete sentences work best. Up to 500 source-based cards are distributed across your materials.',
+          )}{' '}
         </p>
       </div>
       <div className="dialog-footer">
         <button className="button secondary" onClick={onExport}>
-          <ArrowDownToLine size={16} /> Export my backup
+          <ArrowDownToLine size={16} /> {t('Export my backup')}{' '}
         </button>
         <button className="button primary" onClick={onClose}>
-          Got it
-          <Check size={16} />
+          {t('Got it')} <Check size={16} />
         </button>
       </div>
     </dialog>
