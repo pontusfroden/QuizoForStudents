@@ -221,7 +221,7 @@ test('Swedish interface and real OCR on a mixed PDF preserve source pages and cr
   await expect(page.getByRole('heading', { name: 'Lite övning gör stor skillnad.' })).toBeVisible();
   await page.getByRole('button', { name: 'Prova ditt eget material' }).click();
   await page.getByRole('textbox', { name: 'Studiesamlingens namn' }).fill('Biologi på svenska');
-  await expect(page.getByRole('combobox', { name: 'Dokumentets språk' })).toHaveValue('eng+swe');
+  await expect(page.getByRole('combobox', { name: 'Dokumentets språk' })).toHaveValue('swe+eng');
   await page.getByLabel('Ladda upp studiefiler').setInputFiles({
     name: 'Biologi.pdf',
     mimeType: 'application/pdf',

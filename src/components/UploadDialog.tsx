@@ -30,7 +30,7 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
   const [dragging, setDragging] = useState(false);
   const [results, setResults] = useState<StudySource[] | null>(null);
   const [ocrMode, setOcrMode] = useState<ExtractOptions['ocrMode']>('auto');
-  const [language, setLanguage] = useState<OcrLanguage>('eng+swe');
+  const [language, setLanguage] = useState<OcrLanguage>('swe+eng');
   const controller = useRef<AbortController | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -271,7 +271,7 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
                 disabled={busy}
                 onChange={(event) => setLanguage(event.target.value as OcrLanguage)}
               >
-                <option value="eng+swe">{t('Swedish + English')}</option>
+                <option value="swe+eng">{t('Swedish + English')}</option>
                 <option value="swe">{t('Swedish')}</option>
                 <option value="eng">{t('English')}</option>
               </select>

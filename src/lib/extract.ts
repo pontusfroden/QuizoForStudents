@@ -37,7 +37,7 @@ export async function extractFile(
       unreadPages: [],
       blankPages: [],
     };
-    const ocr = createOcrReader(options.language ?? 'eng+swe', options.signal);
+    const ocr = createOcrReader(options.language ?? 'swe+eng', options.signal);
     let extractedLength = 0;
     let ocrFailed = false;
     try {

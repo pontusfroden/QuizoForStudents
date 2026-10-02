@@ -1,7 +1,7 @@
 import type { Worker } from 'tesseract.js';
 import { t } from './i18n';
 
-export type OcrLanguage = 'eng' | 'swe' | 'eng+swe';
+export type OcrLanguage = 'eng' | 'swe' | 'swe+eng';
 export interface ExtractOptions {
   ocrMode?: 'auto' | 'off' | 'all';
   language?: OcrLanguage;
