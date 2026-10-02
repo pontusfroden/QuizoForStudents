@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'The answer is being prepared automatically. This card updates as soon as it is ready.':
+    'Svaret skapas automatiskt i bakgrunden. Kortet uppdateras så snart det är klart.',
   'Local AI is busy or unavailable. Answers will resume automatically.':
     'Lokal AI är upptagen eller inte tillgänglig. Svaren fortsätter skapas automatiskt när den är redo.',
   'Solution approach · exact answer needs more information':

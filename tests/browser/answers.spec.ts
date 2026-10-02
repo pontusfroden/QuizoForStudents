@@ -142,6 +142,7 @@ test('an unfinished automatic answer resumes after reload without a generation b
     await exam(page);
     await expect(page.locator('.answer-preparation')).toContainText('Förbereder svar automatiskt');
     await expect.poll(() => calls).toBe(1);
+    await expect(page.locator('.answer-reveal')).toContainText('Svaret skapas automatiskt');
     await page.reload();
     await page.getByRole('button', { name: /Vänd. Tänk. Kom ihåg./ }).click();
     await page.getByRole('button', { name: 'Starta 1 frågor' }).click();

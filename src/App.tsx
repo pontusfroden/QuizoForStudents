@@ -556,6 +556,7 @@ export default function App() {
               mode={session.mode}
               weakOnly={session.weakOnly}
               onRequestAnswer={(cardId) => setAi({ cardId })}
+              answersPreparing={preparation.running && preparation.deckId === deck.id}
               onClose={() => navigate('overview')}
               onReview={(id, correct) =>
                 updateDeck((current) => ({

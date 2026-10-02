@@ -22,6 +22,7 @@ interface Props {
   onReview: (cardId: string, correct: boolean) => void;
   onFinish: (mode: string, correct: number, total: number) => void;
   onRequestAnswer: (cardId: string) => void;
+  answersPreparing?: boolean;
 }
 export default function StudySession(props: Props) {
   const [round, setRound] = useState(0);
@@ -560,14 +561,22 @@ export default function StudySession(props: Props) {
                   </>
                 ) : card.answerStatus === 'missing' ? (
                   <>
-                    <p>{t('No answer has been read or generated yet.')}</p>
-                    <button
-                      className="button primary"
-                      onClick={() => props.onRequestAnswer(card.id)}
-                    >
-                      <Sparkles size={16} />
-                      {t('Create answer with AI')}
-                    </button>
+                    <p>
+                      {props.answersPreparing
+                        ? t(
+                            'The answer is being prepared automatically. This card updates as soon as it is ready.',
+                          )
+                        : t('No answer has been read or generated yet.')}
+                    </p>
+                    {!props.answersPreparing && (
+                      <button
+                        className="button primary"
+                        onClick={() => props.onRequestAnswer(card.id)}
+                      >
+                        <Sparkles size={16} />
+                        {t('Create answer with AI')}
+                      </button>
+                    )}
                     <details>
                       <summary>{t('Original question and alternatives')}</summary>
                       <p className="preserve-lines">{card.evidence}</p>
