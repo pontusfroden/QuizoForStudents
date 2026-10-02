@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'Local AI is busy or unavailable. Answers will resume automatically.':
+    'Lokal AI är upptagen eller inte tillgänglig. Svaren fortsätter skapas automatiskt när den är redo.',
+  'Solution approach · exact answer needs more information':
+    'Lösningsmetod · ett exakt svar kräver fler uppgifter',
+  'Preparing answers automatically · {ready}/{total} ready':
+    'Förbereder svar automatiskt · {ready}/{total} klara',
+  'Answer keys are used first. Missing answers are created in the background and saved as they finish.':
+    'Facit används först. Saknade svar skapas i bakgrunden och sparas allteftersom de blir klara.',
+  'AI settings': 'AI-inställningar',
   'Suggested answer and explanation': 'Förslag på svar och förklaring',
   'Your answer matches the AI suggestion.': 'Ditt svar stämmer med AI-förslaget.',
   'AI suggests {answer}.': 'AI föreslår {answer}.',

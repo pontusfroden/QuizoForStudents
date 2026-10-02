@@ -12,6 +12,7 @@ export interface AiResult {
   explanation: string;
   basis?: 'material' | 'general';
   model?: string;
+  answerType?: 'solution' | 'approach';
   reference?: { sourceId: string; location: string; quote: string };
 }
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;

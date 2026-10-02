@@ -14,6 +14,30 @@ export interface AiAnswer {
   basis: 'material' | 'general';
   model: string;
   reference?: { sourceId: string; location: string; quote: string };
+  answerType?: 'solution' | 'approach';
+}
+export class AiUnavailableError extends Error {}
+export function applyAiAnswer(deck: StudyDeck, cardId: string, answer: AiAnswer): StudyDeck {
+  const card = deck.cards.find((item) => item.id === cardId);
+  if (!card || card.answerStatus !== 'missing') return deck;
+  const fields = {
+    answer: answer.answer,
+    answerStatus: 'ai' as const,
+    answerExplanation: answer.explanation,
+    answerBasis: answer.basis,
+    answerModel: answer.model,
+    answerType: answer.answerType,
+    answerReference: answer.reference,
+  };
+  return {
+    ...deck,
+    cards: deck.cards.map((item) => (item.id === cardId ? { ...item, ...fields } : item)),
+    examPrompts: deck.examPrompts.map((item) =>
+      item.sourceId === card.sourceId && item.prompt === card.prompt
+        ? { ...item, ...fields }
+        : item,
+    ),
+  };
 }
 export function aiSettings(): AiSettings {
   try {
@@ -45,7 +69,9 @@ export async function checkAi(settings: AiSettings, signal?: AbortSignal): Promi
       signal: signal ?? AbortSignal.timeout(8000),
     });
   } catch {
-    throw new Error(t('Local AI is unavailable. Start Ollama and the Quizo AI server.'));
+    throw new AiUnavailableError(
+      t('Local AI is unavailable. Start Ollama and the Quizo AI server.'),
+    );
   }
   const data = await response.json();
   if (!response.ok || !Array.isArray(data.models))
@@ -93,9 +119,15 @@ export async function requestAiAnswer(
     });
   } catch (error) {
     if (signal.aborted) throw error;
-    throw new Error(t('Local AI is unavailable. Start Ollama and the Quizo AI server.'));
+    throw new AiUnavailableError(
+      t('Local AI is unavailable. Start Ollama and the Quizo AI server.'),
+    );
   }
   const data = await response.json();
+  if (response.status === 429 || response.status === 503)
+    throw new AiUnavailableError(
+      t('Local AI is busy or unavailable. Answers will resume automatically.'),
+    );
   if (!response.ok)
     throw new Error(t('AI could not create an answer. Check Ollama and try again.'));
   if (data.status === 'insufficient')
@@ -105,9 +137,10 @@ export async function requestAiAnswer(
     typeof data.answer !== 'string' ||
     !data.answer.trim() ||
     typeof data.explanation !== 'string' ||
-    !data.explanation.trim() ||
+    (!data.explanation.trim() && data.answerType !== 'approach') ||
     !['material', 'general'].includes(data.basis) ||
-    (card.choices?.length && !card.choices.includes(data.answer))
+    (data.answerType !== undefined && !['solution', 'approach'].includes(data.answerType)) ||
+    (data.answerType !== 'approach' && card.choices?.length && !card.choices.includes(data.answer))
   )
     throw new Error(t('AI returned an unusable answer. Try again.'));
   if (

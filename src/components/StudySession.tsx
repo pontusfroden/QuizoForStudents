@@ -91,7 +91,7 @@ export default function StudySession(props: Props) {
   const manualQuiz =
     props.mode === 'quiz' &&
     !!card?.kind &&
-    (card.answerStatus === 'missing' || options.length < 2);
+    (card.answerStatus === 'missing' || card.answerType === 'approach' || options.length < 2);
   const visualItem =
     props.mode === 'exam'
       ? !deck.examPrompts.length
@@ -393,7 +393,9 @@ export default function StudySession(props: Props) {
             )}
             {(props.mode === 'exam' ? examCard?.answerStatus : card?.answerStatus) === 'ai' && (
               <p className="answer-label">
-                {t('AI suggestion · review against your course material')}
+                {(props.mode === 'exam' ? examCard?.answerType : card?.answerType) === 'approach'
+                  ? t('Solution approach · exact answer needs more information')
+                  : t('AI suggestion · review against your course material')}
               </p>
             )}
             {visualBlock?.image && !revealed && (

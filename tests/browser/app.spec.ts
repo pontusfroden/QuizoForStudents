@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import JSZip from 'jszip';
 import { readFileSync } from 'node:fs';
 import { mixedPdfFixture, pdfFixture } from './pdf-fixture';

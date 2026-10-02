@@ -8,22 +8,29 @@ export interface ParsedQuestion {
   number?: string;
 }
 export const answerKeyHeading =
-  /^\s*(?:facit|svarsförslag|lösningsförslag|answer\s*key|answers|solutions)\s*:?\s*$/imu;
+  /^[ \t]*(?:#{1,6}[ \t]*)?(?:facit|svarsförslag|lösningsförslag|answer[ \t]*key|answers|solutions)(?:[ \t]*:[ \t]*|[ \t]*[–-][ \t]*[^\r\n]+|[ \t]+(?:till|för|for|to)\b[^\r\n]*)?[ \t]*$/imu;
 export function parseAnswerKey(text: string): Map<string, string> {
   const marker = answerKeyHeading.exec(text);
   const result = new Map<string, string>();
+  const conflicting = new Set<string>();
   if (!marker) return result;
   let number = '',
     answer = '';
   const flush = () => {
-    if (number && answer.trim()) result.set(number, answer.trim());
+    if (!number || !answer.trim() || conflicting.has(number)) return;
+    if (result.has(number) && result.get(number) !== answer.trim()) {
+      result.delete(number);
+      conflicting.add(number);
+    } else result.set(number, answer.trim());
   };
   for (const line of text.slice(marker.index + marker[0].length).split('\n')) {
-    const match = line.match(/^\s*(?:(?:fråga|question)\s+)?(\d+[a-z]?)\s*[).:\-]?\s+(.+)$/iu);
+    const match = line.match(
+      /^\s*(?:(?:fråga|question|uppgift)\s+)?(\d+[a-z]?)\s*[).:\-]?(?:\s+(.+))?\s*$/iu,
+    );
     if (match) {
       flush();
-      number = match[1];
-      answer = match[2];
+      number = match[1].toLowerCase();
+      answer = match[2] ?? '';
     } else if (number) answer += '\n' + line;
   }
   flush();

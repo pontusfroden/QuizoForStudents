@@ -47,7 +47,8 @@ import { downloadBackup, loadLibrary, saveLibrary, validateBackup } from './lib/
 import UploadDialog from './components/UploadDialog';
 import StudySession from './components/StudySession';
 import AiDialog from './components/AiDialog';
-import type { AiAnswer } from './lib/ai';
+import { applyAiAnswer, type AiAnswer } from './lib/ai';
+import { useAutomaticAnswers } from './lib/useAutomaticAnswers';
 import { t, useLocale, setLocale, locationLabel, type Locale } from './lib/i18n';
 
 const modes: {
@@ -120,6 +121,7 @@ export default function App() {
   const [sourceKinds, setSourceKinds] = useState<Record<string, StudySource['kind']>>({});
   const backupInput = useRef<HTMLInputElement>(null);
   const saveQueue = useRef(Promise.resolve());
+  const preparation = useAutomaticAnswers(library, setLibrary, locale, !!ai || !!upload);
   useEffect(() => {
     let active = true;
     loadLibrary()
@@ -207,27 +209,7 @@ export default function App() {
     window.scrollTo({ top: 0 });
   }
   function saveAiAnswer(cardId: string, answer: AiAnswer) {
-    updateDeck((current) => {
-      const card = current.cards.find((item) => item.id === cardId);
-      if (!card || card.answerStatus !== 'missing') return current;
-      const fields = {
-        answer: answer.answer,
-        answerStatus: 'ai' as const,
-        answerExplanation: answer.explanation,
-        answerBasis: answer.basis,
-        answerModel: answer.model,
-        ...(answer.reference ? { answerReference: answer.reference } : {}),
-      };
-      return {
-        ...current,
-        cards: current.cards.map((item) => (item.id === cardId ? { ...item, ...fields } : item)),
-        examPrompts: current.examPrompts.map((item) =>
-          item.sourceId === card.sourceId && item.prompt === card.prompt
-            ? { ...item, ...fields }
-            : item,
-        ),
-      };
-    });
+    updateDeck((current) => applyAiAnswer(current, cardId, answer));
   }
   function saveUploaded(title: string, sources: StudySource[]) {
     if (upload === 'add' && deck)
@@ -340,6 +322,10 @@ export default function App() {
         (card.term + card.evidence).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
       )
       .slice(0, 40) ?? [];
+  const questionCards = deck?.isDemo
+    ? []
+    : (deck?.cards.filter((card) => card.kind === 'question') ?? []);
+  const pendingAnswers = questionCards.filter((card) => card.answerStatus === 'missing').length;
 
   return (
     <div className="app-shell">
@@ -475,7 +461,7 @@ export default function App() {
                 onClick={() => setAi({})}
               >
                 <Sparkles size={16} />
-                {t('AI answers')}
+                {t('AI settings')}
               </button>
             )}
             <label className="search-box">
@@ -511,6 +497,41 @@ export default function App() {
           </div>
         </header>
         <main>
+          {deck && pendingAnswers > 0 && (
+            <div className="answer-preparation" role="status">
+              {preparation.running ? (
+                <LoaderCircle className="spin" size={18} />
+              ) : (
+                <Sparkles size={18} />
+              )}
+              <div>
+                <strong>
+                  {t('Preparing answers automatically · {ready}/{total} ready', {
+                    ready: questionCards.length - pendingAnswers,
+                    total: questionCards.length,
+                  })}
+                </strong>
+                <p>
+                  {preparation.error && preparation.deckId === deck.id
+                    ? preparation.error
+                    : t(
+                        'Answer keys are used first. Missing answers are created in the background and saved as they finish.',
+                      )}
+                </p>
+              </div>
+              {!preparation.running && (
+                <button
+                  className="button secondary compact"
+                  onClick={() => {
+                    preparation.retry();
+                    setAi({});
+                  }}
+                >
+                  {t('AI settings')}
+                </button>
+              )}
+            </div>
+          )}
           {storageError && (
             <div className="inline-error" role="alert">
               {storageError}

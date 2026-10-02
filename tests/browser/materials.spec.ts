@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import JSZip from 'jszip';
 
 test('an exam alone runs every mode, retains multiple choice options, and persists progress', async ({

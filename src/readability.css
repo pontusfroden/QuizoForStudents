@@ -516,6 +516,26 @@
 .answer-reveal .answer-explanation {
   line-height: 1.8;
 }
+.answer-preparation {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #ddd5f4;
+  background: #f5f2fc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  color: #554770;
+}
+.answer-preparation div {
+  flex: 1;
+  min-width: 0;
+}
+.answer-preparation p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
 @media (max-width: 600px) {
   .ai-settings-button {
     font-size: 0;

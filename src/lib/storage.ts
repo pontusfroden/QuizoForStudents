@@ -95,6 +95,7 @@ export function validateBackup(value: unknown): Library {
           !['source', 'missing', 'ai'].includes(card.answerStatus)) ||
         (card.answerExplanation !== undefined && typeof card.answerExplanation !== 'string') ||
         (card.answerModel !== undefined && typeof card.answerModel !== 'string') ||
+        (card.answerType !== undefined && !['solution', 'approach'].includes(card.answerType)) ||
         (card.answerBasis !== undefined && !['material', 'general'].includes(card.answerBasis)) ||
         (card.answerReference !== undefined &&
           (!card.answerReference ||

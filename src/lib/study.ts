@@ -3,12 +3,11 @@ import {
   isCoverPage,
   isQuestion,
   parseQuestions,
-  parseAnswerKey,
-  answerKeyHeading,
   reliableText,
   type ParsedQuestion,
 } from './questions';
 import type { CardProgress, ExamPrompt, StudyCard, StudyDeck, StudySource } from '../types';
+import { sourceAnswerIndex } from './sourceAnswers';
 
 const stopwords = new Set(
   'the and with from this that these those their there which when where what why how have has had been being were was are for not can could would should will your you our they them its into onto about between through during such than then also each some any all both other more most less very only just does did do a an of to in is it as at by on or be if we us i s t may might must one two new first second using used use e g example examples chapter page slide notes question answer describe explain discuss compare define name list points mark marks following figure table test old past exam paper och att det den som en ett för med till är på av de har från om inte kan vad hur när eller vi du man så vid genom under samt också denna detta vilka vilket vilken'.split(
@@ -49,7 +48,7 @@ function hash(text: string): string {
   for (const character of text) value = Math.imul(value ^ character.charCodeAt(0), 16777619);
   return (value >>> 0).toString(36);
 }
-export const GENERATION_VERSION = 4;
+export const GENERATION_VERSION = 5;
 export function preserveAiAnswers(
   content: { cards: StudyCard[]; examPrompts: ExamPrompt[] },
   previous: StudyDeck,
@@ -84,6 +83,7 @@ export function preserveAiAnswers(
       answerExplanation: old.answerExplanation,
       answerBasis: old.answerBasis,
       answerModel: old.answerModel,
+      answerType: old.answerType,
       answerReference: old.answerReference,
     };
   });
@@ -128,23 +128,17 @@ export function buildStudyContent(sources: StudySource[]): {
       for (const token of keywords(reliableText(block)))
         frequency.set(token, (frequency.get(token) ?? 0) + 1);
   const buckets: StudyCard[][] = [];
+  const answers = sourceAnswerIndex(sources);
   const seen = new Set<string>();
   const questions: (ParsedQuestion & { sourceId: string; location: string })[] = [];
   for (const source of sources) {
-    const answerKeys = parseAnswerKey(source.blocks.map((block) => reliableText(block)).join('\n'));
-    for (const block of source.blocks) {
-      const text = reliableText(block).split(answerKeyHeading)[0];
+    for (const [blockIndex, block] of source.blocks.entries()) {
+      const text = answers.texts.get(source.id)?.[blockIndex] ?? '';
       const parsed = parseQuestions(text);
       const candidates: StudyCard[] = [];
       for (const question of parsed) {
-        if (!question.answer && question.number && answerKeys.has(question.number)) {
-          const key = answerKeys.get(question.number)!;
-          const letter = key.match(/^([a-f])(?:[).:]|\s|$)/iu)?.[1]?.toLowerCase();
-          question.answer =
-            letter && question.choices.length
-              ? (question.choices[letter.charCodeAt(0) - 97] ?? '')
-              : key;
-        }
+        const solution = answers.resolve(source.id, question);
+        if (solution) question.answer = solution.answer;
         const key = question.prompt.toLocaleLowerCase();
         if (seen.has(key)) continue;
         const term = questionTerm(question.prompt);
@@ -155,6 +149,7 @@ export function buildStudyContent(sources: StudySource[]): {
           prompt: question.prompt,
           answer: question.answer,
           answerStatus: question.answer ? 'source' : 'missing',
+          ...(solution?.reference ? { answerReference: solution.reference } : {}),
           choices: question.choices,
           evidence: question.evidence,
           matchText: question.prompt.replace(new RegExp(escapeRegex(term), 'giu'), '[…]'),
@@ -242,7 +237,12 @@ export function buildStudyContent(sources: StudySource[]): {
           seen.add(evidence.toLocaleLowerCase());
         }
       }
-      if (!candidates.length && block.image && !isCoverPage(block.text)) {
+      if (
+        !candidates.length &&
+        block.image &&
+        !isCoverPage(block.text) &&
+        answers.studyBlocks.get(source.id)?.[blockIndex]
+      ) {
         candidates.push({
           id: hash(source.id + block.label + 'image'),
           kind: 'image',
@@ -315,7 +315,8 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 export function optionsFor(card: StudyCard, cards: StudyCard[]): string[] {
-  if (card.kind === 'image' || card.answerStatus === 'missing') return card.choices ?? [];
+  if (card.kind === 'image' || card.answerStatus === 'missing' || card.answerType === 'approach')
+    return card.choices ?? [];
   if (card.kind === 'question')
     return card.choices?.includes(card.answer) ? shuffle(card.choices) : [];
   const alternatives = [...new Set(cards.map((c) => c.answer))].filter(

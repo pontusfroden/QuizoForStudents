@@ -37,6 +37,7 @@ export interface StudyCard {
   answerExplanation?: string;
   answerBasis?: 'material' | 'general';
   answerModel?: string;
+  answerType?: 'solution' | 'approach';
   answerReference?: { sourceId: string; location: string; quote: string };
   matchText?: string;
 }
