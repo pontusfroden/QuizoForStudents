@@ -16,6 +16,8 @@ Choose **Svenska** in the header to use the Swedish interface. Swedish and Engli
 
 For PDFs, scanned-page reading is on by default. Pages with little embedded text are rendered and read with local OCR in **Swedish + English**. You can select one language, force image reading for every page if a PDF has a broken text layer, or disable OCR. OCR takes longer on large documents; progress is shown per page, and reading can be cancelled. Results show pages read, OCR pages, blank pages, and unread pages. Incomplete extraction is explicitly labelled for review. Recognition is intended for printed text; review the extracted text against your original, especially formulas, tables, or handwriting.
 
+PDF image decoders for JPEG 2000, JBIG2, and CCITT scans are included with the website, together with PDF fonts and character maps. Failed image decoding is reported as unread content, rather than a blank page. If at least half a document appears blank, or OCR reports low confidence, the upload asks you to check the original and opens the review notes; only the extracted text is available for studying.
+
 After updating the app, already-imported sources are not automatically reprocessed because original PDFs are not stored. Use **Add materials** and re-upload affected files. Files with the same name replace their earlier extraction within that study set, preserving source IDs and progress on unchanged cards.
 
 ## Study tools

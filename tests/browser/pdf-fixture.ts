@@ -25,7 +25,12 @@ export function pdfFixture(blank = false): Buffer {
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(pdf);
 }
-export function mixedPdfFixture(image: Buffer, width: number, height: number): Buffer {
+export function mixedPdfFixture(
+  image: Buffer,
+  width: number,
+  height: number,
+  options: { encoding?: 'jpeg' | 'jpx' | 'ccitt'; blankPages?: number } = {},
+): Buffer {
   const objects: Buffer[] = [];
   const add = (data: string | Buffer) => {
     objects.push(typeof data === 'string' ? Buffer.from(data) : data);
@@ -43,7 +48,11 @@ export function mixedPdfFixture(image: Buffer, width: number, height: number): B
   const imageObject = add(
     Buffer.concat([
       Buffer.from(
-        `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`,
+        `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ${
+          options.encoding === 'ccitt'
+            ? `/ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns ${width} /Rows ${height} >>`
+            : `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${options.encoding === 'jpx' ? 'JPXDecode' : 'DCTDecode'}`
+        } /Length ${image.length} >>\nstream\n`,
       ),
       image,
       Buffer.from('\nendstream'),
@@ -55,11 +64,14 @@ export function mixedPdfFixture(image: Buffer, width: number, height: number): B
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Scan ${imageObject} 0 R >> >> /Contents ${imageStream} 0 R >>`,
   );
   const blankStream = add('<< /Length 0 >>\nstream\n\nendstream');
-  const thirdPage = add(
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents ${blankStream} 0 R >>`,
+  const blankPages = Array.from({ length: options.blankPages ?? 1 }, () =>
+    add(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents ${blankStream} 0 R >>`,
+    ),
   );
+  const pages = [firstPage, secondPage, ...blankPages];
   objects[1] = Buffer.from(
-    `<< /Type /Pages /Kids [${firstPage} 0 R ${secondPage} 0 R ${thirdPage} 0 R] /Count 3 >>`,
+    `<< /Type /Pages /Kids [${pages.map((page) => `${page} 0 R`).join(' ')}] /Count ${pages.length} >>`,
   );
   const pieces = [Buffer.from('%PDF-1.4\n')];
   const offsets: number[] = [];

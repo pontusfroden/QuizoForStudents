@@ -45,13 +45,12 @@ export function withTimeout<T>(
 export function hasVisibleInk(canvas: HTMLCanvasElement): boolean {
   const context = canvas.getContext('2d')!;
   const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-  let dark = 0,
-    samples = 0;
-  for (let i = 0; i < data.length; i += 64) {
-    samples++;
-    if ((data[i] + data[i + 1] + data[i + 2]) / 3 < 210 && data[i + 3] > 0) dark++;
+  // Check every pixel: sampling could miss thin lines and pale handwriting.
+  // Only skip an effectively white render; sparse content still deserves OCR.
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 0 && Math.min(data[i], data[i + 1], data[i + 2]) < 250) return true;
   }
-  return dark / samples > 0.0005;
+  return false;
 }
 export function createOcrReader(language: OcrLanguage, signal?: AbortSignal) {
   let workerPromise: Promise<Worker> | undefined;

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -18,4 +18,8 @@ for (const language of ['eng', 'swe']) {
     join(output, `${language}.traineddata.gz`),
   );
 }
-console.log('Prepared local OCR runtime and English/Swedish language data.');
+const pdfDirectory = dirname(require.resolve('pdfjs-dist/package.json'));
+for (const directory of ['wasm', 'cmaps', 'standard_fonts', 'iccs']) {
+  await cp(join(pdfDirectory, directory), resolve('public/pdfjs', directory), { recursive: true });
+}
+console.log('Prepared local OCR languages and PDF image decoders, fonts, and character maps.');

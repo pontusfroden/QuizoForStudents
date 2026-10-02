@@ -438,3 +438,7 @@
     font-size: 9px;
   }
 }
+.success-icon.needs-review {
+  color: #a36520;
+  background: #fff1da;
+}

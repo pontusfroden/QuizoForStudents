@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
+  TriangleAlert,
   Check,
   FileText,
   LoaderCircle,
@@ -13,6 +14,7 @@ import { extractFile, SUPPORTED, textBlocks } from '../lib/extract';
 import type { StudyDeck, StudySource } from '../types';
 import type { ExtractOptions, OcrLanguage } from '../lib/ocr';
 import { t } from '../lib/i18n';
+import { sourceNeedsReview } from '../lib/coverage';
 
 interface Props {
   existing?: StudyDeck;
@@ -34,6 +36,7 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
   const controller = useRef<AbortController | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const needsReview = !!results?.some(sourceNeedsReview) || errors.length > 0;
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
@@ -294,17 +297,15 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
         </>
       ) : (
         <div className="upload-results">
-          <span className="success-icon">
-            <Check />
+          <span className={`success-icon ${needsReview ? 'needs-review' : ''}`}>
+            {needsReview ? <TriangleAlert /> : <Check />}
           </span>
           <h3>
-            {results.some((source) => source.coverage?.unreadPages.length) || errors.length
-              ? t('Some materials need a review.')
-              : t('Your materials are ready.')}
+            {needsReview ? t('Some materials need a review.') : t('Your materials are ready.')}
           </h3>
-          {results.some((source) => source.coverage?.unreadPages.length) && (
+          {results.some(sourceNeedsReview) && (
             <p className="warning-text">
-              {t('Some pages were not read. Review the details below before studying.')}
+              {t('Check page coverage and OCR notes against the original PDF before studying.')}
             </p>
           )}
           <p>
@@ -338,7 +339,10 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
                   </small>
                 )}
                 {source.warnings.length > 0 && (
-                  <details className="extraction-notes">
+                  <details
+                    className="extraction-notes"
+                    open={sourceNeedsReview(source) || undefined}
+                  >
                     <summary>{t('Show extraction notes')}</summary>
                     {source.warnings.map((warning, index) => (
                       <small className="warning-text" key={index}>
@@ -368,7 +372,7 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
         </small>
         {results ? (
           <button className="button primary" onClick={() => onSave(title.trim(), results)}>
-            {t('Let’s study')} <ArrowRight size={16} />
+            {needsReview ? t('Study extracted pages') : t('Let’s study')} <ArrowRight size={16} />
           </button>
         ) : (
           <button

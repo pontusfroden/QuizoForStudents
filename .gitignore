@@ -9,3 +9,4 @@ uploads/
 *.local
 *.tsbuildinfo
 public/ocr/
+public/pdfjs/

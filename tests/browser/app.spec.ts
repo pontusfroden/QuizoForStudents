@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import JSZip from 'jszip';
+import { readFileSync } from 'node:fs';
 import { mixedPdfFixture, pdfFixture } from './pdf-fixture';
 
 test('sample set, all modes, progress and persistent answers', async ({ page }, testInfo) => {
@@ -278,7 +279,7 @@ test('partial extraction is labelled incomplete and reading can be cancelled', a
   await page.getByRole('button', { name: 'Build my study set' }).click();
   await expect(page.getByRole('heading', { name: 'Some materials need a review.' })).toBeVisible();
   await expect(page.locator('.result-file')).toContainText('1 of 3 pages read');
-  await page.getByText('Show extraction notes').click();
+  await expect(page.locator('.extraction-notes')).toHaveAttribute('open', '');
   await expect(page.locator('.extraction-notes')).toContainText('Enable scanned-page reading');
   await page.getByRole('button', { name: 'Back to files' }).click();
   await page.getByRole('combobox', { name: 'Scanned PDF pages' }).selectOption('auto');
@@ -290,6 +291,110 @@ test('partial extraction is labelled incomplete and reading can be cancelled', a
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByRole('alert')).toContainText('Reading cancelled');
   await expect(page.getByRole('button', { name: 'Build my study set' })).toBeEnabled();
+});
+
+test('JPEG 2000 and CCITT scans decode locally and preserve Swedish text', async ({ page }) => {
+  test.setTimeout(120_000);
+  const decoderRequests: string[] = [];
+  const decodingWarnings: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/pdfjs/wasm/')) decoderRequests.push(request.url());
+  });
+  page.on('console', (message) => {
+    if (/Unable to decode|failed to initialize/.test(message.text()))
+      decodingWarnings.push(message.text());
+  });
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Try your own notes' }).click();
+  await page.getByRole('textbox', { name: 'Study set name' }).fill('Compressed scans');
+  await page.getByRole('combobox', { name: 'Document language' }).selectOption('swe');
+  await page.getByLabel('Upload study files').setInputFiles([
+    {
+      name: 'JPEG2000.pdf',
+      mimeType: 'application/pdf',
+      buffer: mixedPdfFixture(
+        readFileSync(new URL('./fixtures/swedish-scan.jp2', import.meta.url)),
+        1200,
+        1600,
+        { encoding: 'jpx' },
+      ),
+    },
+    {
+      name: 'CCITT.pdf',
+      mimeType: 'application/pdf',
+      buffer: mixedPdfFixture(
+        readFileSync(new URL('./fixtures/swedish-scan.ccitt', import.meta.url)),
+        1200,
+        1600,
+        { encoding: 'ccitt' },
+      ),
+    },
+  ]);
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await expect(page.getByRole('heading', { name: 'Your materials are ready.' })).toBeVisible({
+    timeout: 90_000,
+  });
+  for (const row of await page.locator('.result-file').all()) {
+    await expect(row).toContainText('2 of 3 pages read');
+    await expect(row).toContainText('1 page read with OCR');
+  }
+  expect(decoderRequests.some((url) => url.endsWith('/openjpeg.wasm'))).toBe(true);
+  expect(decoderRequests.some((url) => url.endsWith('/jbig2.wasm'))).toBe(true);
+  expect(decodingWarnings).toEqual([]);
+  await page.getByRole('button', { name: 'Let’s study' }).click();
+  for (const name of ['JPEG2000.pdf', 'CCITT.pdf']) {
+    await page.getByRole('textbox', { name: 'Search your materials' }).fill(name);
+    await page.getByRole('button', { name: 'Read text' }).click();
+    await expect(page.locator('.extracted-text')).toContainText('växter');
+    await expect(page.locator('.extracted-text')).toContainText('Cellmembranet');
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+  }
+});
+
+test('decoder failures cannot become blank pages or a successful upload', async ({ page }) => {
+  await page.route('**/pdfjs/wasm/*', (route) => route.abort());
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Try your own notes' }).click();
+  await page.getByRole('textbox', { name: 'Study set name' }).fill('Decoder failure');
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'JPEG2000.pdf',
+    mimeType: 'application/pdf',
+    buffer: mixedPdfFixture(
+      readFileSync(new URL('./fixtures/swedish-scan.jp2', import.meta.url)),
+      1200,
+      1600,
+      { encoding: 'jpx' },
+    ),
+  });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await expect(page.getByRole('heading', { name: 'Some materials need a review.' })).toBeVisible();
+  await expect(page.locator('.extraction-notes')).toContainText(
+    'pages could not be fully read (pages 2)',
+  );
+  await expect(page.locator('.extraction-notes')).not.toContainText('Blank page 2');
+  await expect(page.getByRole('button', { name: 'Study extracted pages' })).toBeVisible();
+});
+
+test('a mostly blank PDF prompts review instead of claiming ready', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('./');
+  const scan = await scanFixture(page);
+  await page.getByRole('button', { name: 'Try your own notes' }).click();
+  await page.getByRole('textbox', { name: 'Study set name' }).fill('Mostly skipped');
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'Mostly blank.pdf',
+    mimeType: 'application/pdf',
+    buffer: mixedPdfFixture(scan, 1200, 1600, { blankPages: 6 }),
+  });
+  await page.getByRole('button', { name: 'Build my study set' }).click();
+  await expect(page.getByRole('heading', { name: 'Some materials need a review.' })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.locator('.result-file')).toContainText('2 of 8 pages read');
+  await expect(page.locator('.extraction-notes')).toContainText(
+    'At least half the pages rendered blank',
+  );
+  await expect(page.locator('.success-icon.needs-review')).toBeVisible();
 });
 
 test('re-uploading a source replaces it while keeping progress for unchanged cards', async ({

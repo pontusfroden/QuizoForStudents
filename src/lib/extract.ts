@@ -1,5 +1,11 @@
 import type { SourceBlock, StudySource } from '../types';
-import { checkCancelled, createOcrReader, hasVisibleInk, type ExtractOptions } from './ocr';
+import {
+  checkCancelled,
+  createOcrReader,
+  hasVisibleInk,
+  withTimeout,
+  type ExtractOptions,
+} from './ocr';
 import { t } from './i18n';
 
 export const SUPPORTED = '.pdf,.docx,.pptx,.txt,.md';
@@ -28,7 +34,16 @@ export async function extractFile(
     const pdfjs = await import('pdfjs-dist');
     const { default: worker } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
     pdfjs.GlobalWorkerOptions.workerSrc = worker;
-    const loadingTask = pdfjs.getDocument({ data });
+    const pdfBase = new URL(`${import.meta.env.BASE_URL}pdfjs/`, window.location.origin).href;
+    const loadingTask = pdfjs.getDocument({
+      data,
+      wasmUrl: `${pdfBase}wasm/`,
+      cMapUrl: `${pdfBase}cmaps/`,
+      standardFontDataUrl: `${pdfBase}standard_fonts/`,
+      iccUrl: `${pdfBase}iccs/`,
+      // Reject malformed page content instead of silently accepting partial rendering.
+      stopAtErrors: true,
+    });
     const document = await loadingTask.promise;
     coverage = {
       totalPages: document.numPages,
@@ -64,6 +79,7 @@ export async function extractFile(
         if (ocrFailed && sparse) coverage.unreadPages.push(i);
         else if (options.ocrMode !== 'off' && (sparse || options.ocrMode === 'all')) {
           const canvas = window.document.createElement('canvas');
+          let recognitionStarted = false;
           try {
             const nativeViewport = page.getViewport({ scale: 1 });
             const scale = Math.min(
@@ -82,6 +98,29 @@ export async function extractFile(
               options.signal?.removeEventListener('abort', cancelRender);
             }
             checkCancelled(options.signal);
+            // PDF.js can resolve a failed image to null even with stopAtErrors enabled.
+            // Check decoded objects before treating a white canvas as an empty page.
+            const operators = await page.getOperatorList();
+            for (let op = 0; op < operators.fnArray.length; op++) {
+              const code = operators.fnArray[op];
+              if (
+                code !== pdfjs.OPS.paintImageXObject &&
+                code !== pdfjs.OPS.paintImageXObjectRepeat
+              )
+                continue;
+              const objectId = operators.argsArray[op][0] as string;
+              const objects = objectId.startsWith('g_') ? page.commonObjs : page.objs;
+              // The operator-list intent may decode a separate image from the display intent.
+              // Wait for its resolution; a pending object is not a decoding failure.
+              const image = await withTimeout(
+                new Promise<unknown>((resolve) => objects.get(objectId, resolve)),
+                options.signal,
+              );
+              if (!image)
+                throw new Error(
+                  t('A PDF image could not be decoded. This page is unread, not blank.'),
+                );
+            }
             if (!hasVisibleInk(canvas)) coverage.blankPages.push(i);
             else {
               onProgress?.(
@@ -91,6 +130,7 @@ export async function extractFile(
                   total: document.numPages,
                 }),
               );
+              recognitionStarted = true;
               const recognized = await ocr.recognize(canvas, (message) =>
                 onProgress?.(
                   t('{name} · page {page}/{total} · {message}', {
@@ -119,8 +159,9 @@ export async function extractFile(
             }
           } catch (error) {
             checkCancelled(options.signal);
-            ocrFailed = true;
-            if (sparse) coverage.unreadPages.push(i);
+            // A broken PDF image does not prevent reading subsequent valid pages.
+            if (recognitionStarted) ocrFailed = true;
+            coverage.unreadPages.push(i);
             warnings.push(
               t('Page {page}: scan reading failed. {message}', {
                 page: i,
@@ -175,6 +216,12 @@ export async function extractFile(
               count: coverage.blankPages.length,
               pages: coverage.blankPages.join(', '),
             }),
+      );
+    if (coverage.blankPages.length >= coverage.totalPages / 2)
+      warnings.unshift(
+        t(
+          'At least half the pages rendered blank. Check the original PDF before relying on this study set.',
+        ),
       );
   } else if (extension === 'pptx' || extension === 'docx') {
     const { default: JSZip } = await import('jszip');

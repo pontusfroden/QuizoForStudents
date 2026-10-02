@@ -1,6 +1,13 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'A PDF image could not be decoded. This page is unread, not blank.':
+    'En bild i PDF-filen kunde inte läsas. Sidan är oläst, inte tom.',
+  'Check page coverage and OCR notes against the original PDF before studying.':
+    'Kontrollera sidantal och OCR-anmärkningar mot originalfilen innan du studerar.',
+  'At least half the pages rendered blank. Check the original PDF before relying on this study set.':
+    'Minst hälften av sidorna såg tomma ut vid läsningen. Kontrollera originalfilen innan du använder studiesamlingen.',
+  'Study extracted pages': 'Studera de lästa sidorna',
   'Interface language': 'Gränssnittets språk',
   'Making a little room for learning…': 'Förbereder din studieplats…',
   Review: 'Repetera',
