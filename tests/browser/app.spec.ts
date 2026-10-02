@@ -171,13 +171,11 @@ test('an image-only PDF reports missing text instead of inventing content', asyn
   await page.goto('./');
   await page.getByRole('button', { name: 'Try your own notes' }).click();
   await page.getByRole('textbox', { name: 'Study set name' }).fill('Scanned material');
-  await page
-    .getByLabel('Upload study files')
-    .setInputFiles({
-      name: 'Scanned notes.pdf',
-      mimeType: 'application/pdf',
-      buffer: pdfFixture(true),
-    });
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'Scanned notes.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfFixture(true),
+  });
   await page.getByRole('button', { name: 'Build my study set' }).click();
   await expect(page.getByRole('alert')).toContainText('no usable text found');
   await expect(page.getByRole('button', { name: 'Let’s study' })).toHaveCount(0);
