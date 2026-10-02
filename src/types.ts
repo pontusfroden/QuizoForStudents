@@ -33,7 +33,11 @@ export interface StudyCard {
   kind?: 'cloze' | 'question' | 'image';
   choices?: string[];
   /** An empty answer means the source contains a question, but no verified solution. */
-  answerStatus?: 'source' | 'missing';
+  answerStatus?: 'source' | 'missing' | 'ai';
+  answerExplanation?: string;
+  answerBasis?: 'material' | 'general';
+  answerModel?: string;
+  answerReference?: { sourceId: string; location: string; quote: string };
   matchText?: string;
 }
 export interface ExamPrompt {
@@ -44,6 +48,8 @@ export interface ExamPrompt {
   relatedCardIds: string[];
   choices?: string[];
   answer?: string;
+  answerStatus?: 'source' | 'missing' | 'ai';
+  answerExplanation?: string;
 }
 export interface CardProgress {
   attempts: number;

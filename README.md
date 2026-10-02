@@ -2,7 +2,7 @@
 
 A little practice. A lot more confidence.
 
-QuizoForStudents is a browser study workspace that turns notes, presentations, and past tests into source-based practice. The first version works without accounts, API keys, or a backend. Your materials are processed on your device.
+QuizoForStudents is a browser study workspace that turns notes, presentations, and past tests into source-based practice. Basic practice works without accounts, API keys, or a backend; optional answers and explanations use a local Ollama service. Your materials are processed on your device.
 
 **[Open the study app](https://pontusfroden.github.io/QuizoForStudents/)**
 
@@ -22,20 +22,36 @@ Existing sets and restored backups automatically regenerate their cards when gen
 
 ## Study tools
 
-- **Quick quiz:** answer original multiple-choice questions, complete source sentences, or write a short answer. Explicit source answers enable automatic grading; questions without a verified key use self-assessment and are never falsely marked correct.
-- **Flashcards:** recall an idea, answer a full exam question, or hide and recall a source image; reveal the source answer, excerpt, image, or a checklist before rating your recall.
+- **Quick quiz:** answer original multiple-choice questions, complete source sentences, or write a short answer. Source answers enable grading. Generated answers are labelled AI suggestions; quiz feedback says when your choice matches the suggestion.
+- **Flashcards:** question cards hide alternatives on the front and reveal a concrete answer and explanation on the back. Missing answers offer local AI generation instead of a generic checklist. Facts and source images also support recall.
 - **Match it:** connect concepts to definitions, topics to question excerpts, or source-page labels to images. A mismatch schedules another look.
 - **Written recall:** explain a concept yourself, compare with the original source, then self-grade. Keyword overlap is a hint, not a grade.
-- **Past-paper practice:** attempt complete questions with their original alternatives. Compare with an explicit source answer or related excerpts when available; otherwise use a checklist and self-assessment. Other material can also be used for written practice in this mode. These self-ratings are saved in session history separately from card progress.
+- **Past-paper practice:** attempt complete questions with their alternatives. Compare with a source answer, a labelled AI suggestion and explanation, or related excerpts. These self-ratings are saved separately from card progress.
 - **Focused review:** missed concepts and due cards come first. Two confident reviews make a concept “familiar”. Confident reviews are scheduled after 10 minutes, 1 day, 3 days, and 7 days; missed concepts return sooner.
 - **Materials and ideas:** read extracted text, inspect source locations, search across your material, and remove individual files.
 - **Backup and restore:** export materials and progress as JSON. Restore adds copies while keeping your existing sets.
 
 ## What this first version can and cannot do
 
-This is a **local, source-based study tool**, not an AI tutor yet. It parses questions and answer choices, definitions, sentences, short lists, tables, and images to create up to 500 cards distributed across your material. Questions retain their full wording and source location. Short slides do not need rewriting into complete notes. Multiple-choice alternatives are not promoted to factual statements.
+This is a **local study tool with optional Ollama answers**. It creates up to 500 cards from questions, facts, lists, tables, and images. Numbered answer keys can supply answers from other pages of the same source. Alternatives are not promoted to facts. AI explanations persist in backups and survive regeneration when the question and choices are unchanged; a newly supplied source answer takes precedence.
 
-It does not invent missing answers, infer a marking scheme, automatically grade essays, or understand diagrams. OCR can recover printed text; difficult handwriting and formulas remain available as visual practice rather than unreliable facts. PPTX speaker notes and embedded Office images are included, but complex layout and cross-page answer-key linking are not fully interpreted. Legacy DOC/PPT files need conversion. Password-protected, malformed, or unsupported files can fail explicitly. There is a 2-million-character extraction limit per document and a 100 MB expanded-size limit for Office archives. OCR has a timeout per page and bounds rendered page size.
+Local AI can answer ordinary subject questions without separate notes. It uses reliable course text when available, or labels its answer as general knowledge. Supporting quotes are checked against the supplied text. Suggestions can still be wrong and are not a teacher's marking scheme. Essays remain self-assessed; unavailable figures or exact course-specific facts can leave questions unanswered. This answer feature processes text; difficult handwriting, formulas and diagrams remain visual practice. Legacy DOC/PPT files need conversion. Malformed, encrypted or unsupported files can fail explicitly. Text is bounded to 2 million characters, expanded Office archives to 100 MB, and OCR has page timeouts.
+
+## Free local AI
+
+Install [Ollama](https://ollama.com/download) and download a local model:
+
+```sh
+ollama pull qwen3.5:4b
+npm run build
+npm run ai
+```
+
+Keep Ollama and the Quizo server running. On Windows, after the model is installed, **Start-Quizo.cmd** builds the app, starts the local server in the background, and opens the GitHub Pages website. In the app choose **AI answers → Check connection → Create answers**, or **Create answer with AI** on an unanswered card. Answers are saved one at a time, so cancelling preserves completed answers. Model loading can make the first answer slower; CPU generation can take tens of seconds per question.
+
+The default server is `http://127.0.0.1:3001/api` and binds only to this computer. It calls local Ollama on port 11434 and accepts Quizo's GitHub Pages origin and local browser origins. Cloud-tagged models are excluded. For local-only Ollama operation set `OLLAMA_NO_CLOUD=1` or `disable_ollama_cloud: true` in its configuration, as described in the [Ollama FAQ](https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features).
+
+Your browser may ask for permission to reach a service on this computer. Alternatively, open `http://127.0.0.1:3001/QuizoForStudents/`; localhost and GitHub Pages have separate study storage, so export/restore a backup when switching. GitHub Pages hosts the interface; each student's computer runs local AI. Other devices need their own installation. No API key, paid service, or account is required for this setup. Selected questions, alternatives and relevant text are processed by Ollama on this computer.
 
 Do not treat familiarity or practice accuracy as a predicted exam score. Source errors can appear in study cards: check the source text before practicing.
 

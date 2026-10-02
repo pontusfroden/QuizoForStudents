@@ -1,6 +1,48 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'Suggested answer and explanation': 'Förslag på svar och förklaring',
+  'Your answer matches the AI suggestion.': 'Ditt svar stämmer med AI-förslaget.',
+  'AI suggests {answer}.': 'AI föreslår {answer}.',
+  'Cards can use facts, questions, lists, and images. Readable answer keys are linked to questions. Local Ollama can generate missing answers and explanations without separate notes. AI suggestions are labelled and need review; essays remain self-assessed.':
+    'Kort kan bygga på fakta, frågor, listor och bilder. Läsbart facit kopplas till frågorna. Lokal Ollama kan skapa saknade svar och förklaringar utan separata anteckningar. AI-förslag märks tydligt och behöver granskas; längre svar bedömer du själv.',
+  'AI answers': 'AI-svar',
+  'Answers with local AI': 'Svar med lokal AI',
+  'Create concrete answers and explanations on this computer. Questions and relevant excerpts go only to your local Ollama model.':
+    'Skapa konkreta svar och förklaringar på den här datorn. Frågor och relevanta utdrag skickas bara till din lokala Ollama-modell.',
+  'Local AI server': 'Lokal AI-server',
+  'Local model': 'Lokal modell',
+  'Check connection': 'Kontrollera anslutningen',
+  'Checking connection…': 'Kontrollerar anslutningen…',
+  'Create answers': 'Skapa svar',
+  'Create answer with AI': 'Skapa svar med AI',
+  'Close AI settings': 'Stäng AI-inställningar',
+  'Cancel generation': 'Avbryt generering',
+  'AI answers are suggestions, not a teacher’s answer key. Review the answer and its explanation before relying on it.':
+    'AI-svar är förslag, inte lärarens facit. Granska svaret och förklaringen innan du förlitar dig på dem.',
+  'No local model installed. Download a model in Ollama first.':
+    'Ingen lokal modell finns installerad. Ladda först ner en modell i Ollama.',
+  '{count} questions need answers.': '{count} frågor saknar svar.',
+  '{count} answers saved.': '{count} svar sparade.',
+  'How to start local AI': 'Så startar du lokal AI',
+  'Start Ollama, then run npm run ai in the Quizo project. Keep that terminal running. You can also open the local version of Quizo.':
+    'Starta Ollama och kör sedan npm run ai i Quizo-projektet. Låt terminalen vara igång. Du kan också öppna den lokala versionen av Quizo.',
+  'Open local Quizo': 'Öppna lokala Quizo',
+  'No answer has been read or generated yet.': 'Inget svar har lästs eller skapats ännu.',
+  'AI suggestion · review against your course material':
+    'AI-förslag · granska mot ditt kursmaterial',
+  'Based on supplied material · AI interpretation': 'Utifrån uppladdat material · AI-tolkning',
+  'Based on general knowledge · AI suggestion': 'Utifrån allmän ämneskunskap · AI-förslag',
+  'Supporting source excerpt': 'Stödjande källutdrag',
+  'AI must use a local server on this computer.':
+    'AI ska använda en lokal server på den här datorn.',
+  'Local AI is unavailable. Start Ollama and the Quizo AI server.':
+    'Lokal AI är inte tillgänglig. Starta Ollama och Quizos AI-server.',
+  'AI could not create an answer. Check Ollama and try again.':
+    'AI kunde inte skapa ett svar. Kontrollera Ollama och försök igen.',
+  'More course context is needed for this question.':
+    'Den här frågan behöver mer information från kursen.',
+  'AI returned an unusable answer. Try again.': 'AI gav inget användbart svar. Försök igen.',
   'Create a study set with documents, images, spreadsheets, or text. Check the extracted content and images in My materials. Every category works in every study mode.':
     'Skapa en studiesamling med dokument, bilder, tabeller eller text. Kontrollera innehållet och bilderna i Mitt material. Alla kategorier fungerar i alla studielägen.',
   'Practice facts, complete questions, short lists, or source images in different ways. Source answer keys enable grading. Without a key, reveal study support and assess your recall.':

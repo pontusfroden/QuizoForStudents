@@ -23,7 +23,7 @@ test('an exam alone runs every mode, retains multiple choice options, and persis
   await expect(page.locator('.question-panel h2')).toContainText(/kraft|Rörelseenergi|Förklara/);
   await page.getByRole('button', { name: 'Vänd kortet' }).click();
   await expect(page.locator('.answer-reveal')).toContainText(
-    'Källan innehåller inget verifierat facit',
+    'Inget svar har lästs eller skapats ännu',
   );
   await page.screenshot({
     path: `test-results/exam-flashcards-${testInfo.project.name}.png`,

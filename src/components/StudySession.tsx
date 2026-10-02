@@ -21,6 +21,7 @@ interface Props {
   onClose: () => void;
   onReview: (cardId: string, correct: boolean) => void;
   onFinish: (mode: string, correct: number, total: number) => void;
+  onRequestAnswer: (cardId: string) => void;
 }
 export default function StudySession(props: Props) {
   const [round, setRound] = useState(0);
@@ -55,10 +56,12 @@ export default function StudySession(props: Props) {
       .slice(0, 5);
   }, [queue]);
   const matchDefinitions = useMemo(() => shuffle(matchCards), [matchCards]);
-  const sessionCards = queue.slice(0, questionCount);
+  const sessionCards = queue
+    .slice(0, questionCount)
+    .map((card) => props.deck.cards.find((current) => current.id === card.id) ?? card);
   const exams = (
     deck.examPrompts.length
-      ? deck.examPrompts
+      ? props.deck.examPrompts
       : queue.map((card) => ({
           id: card.id,
           prompt:
@@ -69,6 +72,7 @@ export default function StudySession(props: Props) {
           location: card.location,
           choices: card.choices,
           answer: card.kind ? card.answer : card.evidence,
+          answerExplanation: card.answerExplanation,
           relatedCardIds: card.kind === 'image' ? [] : [card.id],
         }))
   ).slice(0, questionCount);
@@ -80,6 +84,9 @@ export default function StudySession(props: Props) {
         : sessionCards.length;
   const card = sessionCards[index];
   const exam = exams[index];
+  const examCard = props.deck.cards.find(
+    (item) => item.sourceId === exam?.sourceId && item.prompt === exam?.prompt,
+  );
   const options = useMemo(() => (card ? optionsFor(card, deck.cards) : []), [card, deck.cards]);
   const manualQuiz =
     props.mode === 'quiz' &&
@@ -384,6 +391,11 @@ export default function StudySession(props: Props) {
                   : t('Practice question · no verified answer in the source')}
               </p>
             )}
+            {(props.mode === 'exam' ? examCard?.answerStatus : card?.answerStatus) === 'ai' && (
+              <p className="answer-label">
+                {t('AI suggestion · review against your course material')}
+              </p>
+            )}
             {visualBlock?.image && !revealed && (
               <div className="visual-recall">
                 {!imageHidden && (
@@ -399,7 +411,7 @@ export default function StudySession(props: Props) {
             )}
             {(props.mode === 'exam'
               ? exam.choices
-              : props.mode !== 'quiz'
+              : props.mode !== 'quiz' && props.mode !== 'flashcards'
                 ? card?.choices
                 : undefined
             )?.length ? (
@@ -488,16 +500,25 @@ export default function StudySession(props: Props) {
               <div className="answer-reveal" role="status">
                 <strong>
                   {props.mode === 'quiz' && !manualQuiz
-                    ? selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase()
-                      ? t('That’s it!')
-                      : t('The answer is {answer}.', { answer: card.answer })
-                    : t('Compare with the source')}
+                    ? card.answerStatus === 'ai'
+                      ? selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase()
+                        ? t('Your answer matches the AI suggestion.')
+                        : t('AI suggests {answer}.', { answer: card.answer })
+                      : selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase()
+                        ? t('That’s it!')
+                        : t('The answer is {answer}.', { answer: card.answer })
+                    : (props.mode === 'exam' ? examCard?.answerStatus : card.answerStatus) === 'ai'
+                      ? t('Suggested answer and explanation')
+                      : t('Compare with the source')}
                 </strong>
                 {props.mode === 'exam' ? (
                   visualBlock?.image ? (
                     <img className="source-image" src={visualBlock.image} alt={t('Source image')} />
                   ) : exam.answer ? (
-                    <p>{exam.answer}</p>
+                    <>
+                      <p className="actual-answer">{exam.answer}</p>
+                      {exam.answerExplanation && <p>{exam.answerExplanation}</p>}
+                    </>
                   ) : related.length ? (
                     related.map((relatedCard) => (
                       <p key={relatedCard.id}>
@@ -509,11 +530,18 @@ export default function StudySession(props: Props) {
                       </p>
                     ))
                   ) : (
-                    <p>
-                      {t(
-                        'There is no verified answer in this source. Explain the relevant concepts, give an example, and check that you addressed every part of the question.',
-                      )}{' '}
-                    </p>
+                    <>
+                      <p>{t('No answer has been read or generated yet.')}</p>
+                      {examCard && (
+                        <button
+                          className="button primary"
+                          onClick={() => props.onRequestAnswer(examCard.id)}
+                        >
+                          <Sparkles size={16} />
+                          {t('Create answer with AI')}
+                        </button>
+                      )}
+                    </>
                   )
                 ) : card.kind === 'image' ? (
                   <>
@@ -530,31 +558,58 @@ export default function StudySession(props: Props) {
                   </>
                 ) : card.answerStatus === 'missing' ? (
                   <>
-                    <p>
-                      {t(
-                        'There is no verified answer in this source. Explain the relevant concepts, give an example, and check that you addressed every part of the question.',
-                      )}
-                    </p>
-                    <ul className="study-checklist">
-                      <li>{t('Define the key concepts in the question.')}</li>
-                      <li>{t('Explain the relationships or steps in your own words.')}</li>
-                      <li>{t('Give a concrete example and justify your answer.')}</li>
-                    </ul>
+                    <p>{t('No answer has been read or generated yet.')}</p>
+                    <button
+                      className="button primary"
+                      onClick={() => props.onRequestAnswer(card.id)}
+                    >
+                      <Sparkles size={16} />
+                      {t('Create answer with AI')}
+                    </button>
                     <details>
                       <summary>{t('Original question and alternatives')}</summary>
                       <p className="preserve-lines">{card.evidence}</p>
                     </details>
                   </>
                 ) : (
-                  <p className="preserve-lines">
-                    {card.kind === 'question' ? card.answer : card.evidence}
-                  </p>
+                  <>
+                    <p className="preserve-lines actual-answer">
+                      {card.kind === 'question' ? card.answer : card.evidence}
+                    </p>
+                    {card.answerExplanation && (
+                      <p className="answer-explanation">{card.answerExplanation}</p>
+                    )}
+                    {card.answerStatus === 'ai' && (
+                      <small>
+                        {card.answerBasis === 'material'
+                          ? t('Based on supplied material · AI interpretation')
+                          : t('Based on general knowledge · AI suggestion')}
+                        {' · '}
+                        {card.answerModel}
+                      </small>
+                    )}
+                    {card.answerReference && (
+                      <details>
+                        <summary>{t('Supporting source excerpt')}</summary>
+                        <p>{card.answerReference.quote}</p>
+                        <small>
+                          {
+                            deck.sources.find(
+                              (source) => source.id === card.answerReference?.sourceId,
+                            )?.name
+                          }{' '}
+                          · {locationLabel(card.answerReference.location)}
+                        </small>
+                      </details>
+                    )}
+                  </>
                 )}
-                {props.mode === 'recall' && (
+                {props.mode === 'recall' && card.answerStatus !== 'missing' && (
                   <small>
                     {
-                      keywords(card.evidence).filter((token) => keywords(written).includes(token))
-                        .length
+                      keywords(card.kind === 'question' ? card.answer : card.evidence).filter(
+                        (token) => keywords(written).includes(token),
+                      ).length
                     }{' '}
                     {t(
                       'source keywords appear in your answer. This is a hint, not an automatic grade.',

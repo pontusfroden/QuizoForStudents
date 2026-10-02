@@ -91,7 +91,19 @@ export function validateBackup(value: unknown): Library {
         (card.choices !== undefined &&
           (!Array.isArray(card.choices) ||
             card.choices.some((choice) => typeof choice !== 'string'))) ||
-        (card.answerStatus !== undefined && !['source', 'missing'].includes(card.answerStatus)) ||
+        (card.answerStatus !== undefined &&
+          !['source', 'missing', 'ai'].includes(card.answerStatus)) ||
+        (card.answerExplanation !== undefined && typeof card.answerExplanation !== 'string') ||
+        (card.answerModel !== undefined && typeof card.answerModel !== 'string') ||
+        (card.answerBasis !== undefined && !['material', 'general'].includes(card.answerBasis)) ||
+        (card.answerReference !== undefined &&
+          (!card.answerReference ||
+            ['sourceId', 'location', 'quote'].some(
+              (key) =>
+                typeof card.answerReference?.[key as keyof typeof card.answerReference] !==
+                'string',
+            ) ||
+            !deck.sources.some((source) => source.id === card.answerReference?.sourceId))) ||
         (card.matchText !== undefined && typeof card.matchText !== 'string')
       )
         throw new Error('The backup has invalid study cards.');

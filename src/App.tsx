@@ -38,6 +38,7 @@ import {
   buildStudyContent,
   GENERATION_VERSION,
   regenerateDeck,
+  preserveAiAnswers,
   recordReview,
   stats,
 } from './lib/study';
@@ -45,6 +46,8 @@ import { reliableText } from './lib/questions';
 import { downloadBackup, loadLibrary, saveLibrary, validateBackup } from './lib/storage';
 import UploadDialog from './components/UploadDialog';
 import StudySession from './components/StudySession';
+import AiDialog from './components/AiDialog';
+import type { AiAnswer } from './lib/ai';
 import { t, useLocale, setLocale, locationLabel, type Locale } from './lib/i18n';
 
 const modes: {
@@ -113,6 +116,7 @@ export default function App() {
   const [openSource, setOpenSource] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
+  const [ai, setAi] = useState<{ cardId?: string } | null>(null);
   const [sourceKinds, setSourceKinds] = useState<Record<string, StudySource['kind']>>({});
   const backupInput = useRef<HTMLInputElement>(null);
   const saveQueue = useRef(Promise.resolve());
@@ -202,6 +206,29 @@ export default function App() {
     setMobileMenu(false);
     window.scrollTo({ top: 0 });
   }
+  function saveAiAnswer(cardId: string, answer: AiAnswer) {
+    updateDeck((current) => {
+      const card = current.cards.find((item) => item.id === cardId);
+      if (!card || card.answerStatus !== 'missing') return current;
+      const fields = {
+        answer: answer.answer,
+        answerStatus: 'ai' as const,
+        answerExplanation: answer.explanation,
+        answerBasis: answer.basis,
+        answerModel: answer.model,
+        ...(answer.reference ? { answerReference: answer.reference } : {}),
+      };
+      return {
+        ...current,
+        cards: current.cards.map((item) => (item.id === cardId ? { ...item, ...fields } : item)),
+        examPrompts: current.examPrompts.map((item) =>
+          item.sourceId === card.sourceId && item.prompt === card.prompt
+            ? { ...item, ...fields }
+            : item,
+        ),
+      };
+    });
+  }
   function saveUploaded(title: string, sources: StudySource[]) {
     if (upload === 'add' && deck)
       updateDeck((current) => {
@@ -215,7 +242,7 @@ export default function App() {
           ),
           ...replacements,
         ];
-        const content = buildStudyContent(combined);
+        const content = preserveAiAnswers(buildStudyContent(combined), current, combined);
         return {
           ...current,
           generationVersion: GENERATION_VERSION,
@@ -254,7 +281,7 @@ export default function App() {
   function removeSource(sourceId: string) {
     updateDeck((current) => {
       const sources = current.sources.filter((source) => source.id !== sourceId);
-      const content = buildStudyContent(sources);
+      const content = preserveAiAnswers(buildStudyContent(sources), current, sources);
       return {
         ...current,
         sources,
@@ -442,6 +469,15 @@ export default function App() {
             </strong>
           </div>
           <div className="topbar-actions">
+            {deck && (
+              <button
+                className="button secondary compact ai-settings-button"
+                onClick={() => setAi({})}
+              >
+                <Sparkles size={16} />
+                {t('AI answers')}
+              </button>
+            )}
             <label className="search-box">
               <Search size={17} />
               <input
@@ -498,6 +534,7 @@ export default function App() {
               deck={deck}
               mode={session.mode}
               weakOnly={session.weakOnly}
+              onRequestAnswer={(cardId) => setAi({ cardId })}
               onClose={() => navigate('overview')}
               onReview={(id, correct) =>
                 updateDeck((current) => ({
@@ -847,7 +884,11 @@ export default function App() {
                               const sources = current.sources.map((item) =>
                                 item.id === source.id ? { ...item, kind } : item,
                               );
-                              const content = buildStudyContent(sources);
+                              const content = preserveAiAnswers(
+                                buildStudyContent(sources),
+                                current,
+                                sources,
+                              );
                               return {
                                 ...current,
                                 sources,
@@ -1180,6 +1221,14 @@ export default function App() {
       {help && (
         <HelpDialog onClose={() => setHelp(false)} onExport={() => downloadBackup(library)} />
       )}
+      {ai && deck && (
+        <AiDialog
+          deck={deck}
+          cardId={ai.cardId}
+          onAnswer={saveAiAnswer}
+          onClose={() => setAi(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1264,7 +1313,7 @@ function HelpDialog({ onClose, onExport }: { onClose: () => void; onExport: () =
         <p>
           <strong>{t('This first version uses text extraction and rules.')}</strong>{' '}
           {t(
-            'Every material type can create practice cards: facts, questions, lists, and source images. OCR that needs review is excluded from automatic facts. Questions without a source answer remain practice questions with self-assessment. This local version does not invent an answer key or automatically grade essays.',
+            'Cards can use facts, questions, lists, and images. Readable answer keys are linked to questions. Local Ollama can generate missing answers and explanations without separate notes. AI suggestions are labelled and need review; essays remain self-assessed.',
           )}{' '}
         </p>
       </div>

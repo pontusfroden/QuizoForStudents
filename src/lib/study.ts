@@ -3,6 +3,8 @@ import {
   isCoverPage,
   isQuestion,
   parseQuestions,
+  parseAnswerKey,
+  answerKeyHeading,
   reliableText,
   type ParsedQuestion,
 } from './questions';
@@ -47,11 +49,65 @@ function hash(text: string): string {
   for (const character of text) value = Math.imul(value ^ character.charCodeAt(0), 16777619);
   return (value >>> 0).toString(36);
 }
-export const GENERATION_VERSION = 3;
+export const GENERATION_VERSION = 4;
+export function preserveAiAnswers(
+  content: { cards: StudyCard[]; examPrompts: ExamPrompt[] },
+  previous: StudyDeck,
+  sources = previous.sources,
+) {
+  const cards = content.cards.map((card) => {
+    const old = previous.cards.find((item) => item.id === card.id);
+    if (
+      card.answerStatus !== 'missing' ||
+      old?.answerStatus !== 'ai' ||
+      card.prompt !== old.prompt ||
+      JSON.stringify(card.choices) !== JSON.stringify(old.choices)
+    )
+      return card;
+    if (
+      old.answerReference &&
+      !sources.some(
+        (source) =>
+          source.id === old.answerReference?.sourceId &&
+          source.blocks.some(
+            (block) =>
+              block.label === old.answerReference?.location &&
+              block.text.includes(old.answerReference.quote),
+          ),
+      )
+    )
+      return card;
+    return {
+      ...card,
+      answer: old.answer,
+      answerStatus: 'ai' as const,
+      answerExplanation: old.answerExplanation,
+      answerBasis: old.answerBasis,
+      answerModel: old.answerModel,
+      answerReference: old.answerReference,
+    };
+  });
+  return {
+    cards,
+    examPrompts: content.examPrompts.map((prompt) => {
+      const card = cards.find(
+        (item) => item.sourceId === prompt.sourceId && item.prompt === prompt.prompt,
+      );
+      return card?.answerStatus === 'ai'
+        ? {
+            ...prompt,
+            answer: card.answer,
+            answerStatus: card.answerStatus,
+            answerExplanation: card.answerExplanation,
+          }
+        : prompt;
+    }),
+  };
+}
 
 export function regenerateDeck(deck: StudyDeck): StudyDeck {
   if (deck.generationVersion === GENERATION_VERSION) return deck;
-  const content = buildStudyContent(deck.sources);
+  const content = preserveAiAnswers(buildStudyContent(deck.sources), deck);
   return {
     ...deck,
     ...content,
@@ -74,12 +130,21 @@ export function buildStudyContent(sources: StudySource[]): {
   const buckets: StudyCard[][] = [];
   const seen = new Set<string>();
   const questions: (ParsedQuestion & { sourceId: string; location: string })[] = [];
-  for (const source of sources)
+  for (const source of sources) {
+    const answerKeys = parseAnswerKey(source.blocks.map((block) => reliableText(block)).join('\n'));
     for (const block of source.blocks) {
-      const text = reliableText(block);
+      const text = reliableText(block).split(answerKeyHeading)[0];
       const parsed = parseQuestions(text);
       const candidates: StudyCard[] = [];
       for (const question of parsed) {
+        if (!question.answer && question.number && answerKeys.has(question.number)) {
+          const key = answerKeys.get(question.number)!;
+          const letter = key.match(/^([a-f])(?:[).:]|\s|$)/iu)?.[1]?.toLowerCase();
+          question.answer =
+            letter && question.choices.length
+              ? (question.choices[letter.charCodeAt(0) - 97] ?? '')
+              : key;
+        }
         const key = question.prompt.toLocaleLowerCase();
         if (seen.has(key)) continue;
         const term = questionTerm(question.prompt);
@@ -192,6 +257,7 @@ export function buildStudyContent(sources: StudySource[]): {
       }
       if (candidates.length) buckets.push(candidates);
     }
+  }
   const cards: StudyCard[] = [];
   let index = 0;
   while (cards.length < 500 && buckets.some((bucket) => bucket.length > index)) {
@@ -224,6 +290,7 @@ export function buildStudyContent(sources: StudySource[]): {
       relatedCardIds,
       choices: question.choices,
       answer: question.answer,
+      answerStatus: question.answer ? 'source' : 'missing',
     };
   });
   return { cards, examPrompts };

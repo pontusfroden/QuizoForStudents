@@ -5,6 +5,29 @@ export interface ParsedQuestion {
   choices: string[];
   answer: string;
   evidence: string;
+  number?: string;
+}
+export const answerKeyHeading =
+  /^\s*(?:facit|svarsförslag|lösningsförslag|answer\s*key|answers|solutions)\s*:?\s*$/imu;
+export function parseAnswerKey(text: string): Map<string, string> {
+  const marker = answerKeyHeading.exec(text);
+  const result = new Map<string, string>();
+  if (!marker) return result;
+  let number = '',
+    answer = '';
+  const flush = () => {
+    if (number && answer.trim()) result.set(number, answer.trim());
+  };
+  for (const line of text.slice(marker.index + marker[0].length).split('\n')) {
+    const match = line.match(/^\s*(?:(?:fråga|question)\s+)?(\d+[a-z]?)\s*[).:\-]?\s+(.+)$/iu);
+    if (match) {
+      flush();
+      number = match[1];
+      answer = match[2];
+    } else if (number) answer += '\n' + line;
+  }
+  flush();
+  return result;
 }
 
 const questionStart =
@@ -46,7 +69,7 @@ export function reliableText(block: SourceBlock): string {
     .trim();
 }
 
-function parseGroup(group: string, numbered = false): ParsedQuestion[] {
+function parseGroup(group: string, numbered = false, number?: string): ParsedQuestion[] {
   const raw = group.trim();
   if (raw.length < 8 || raw.length > 6000) return [];
   const answerMatch = raw.match(
@@ -73,7 +96,7 @@ function parseGroup(group: string, numbered = false): ParsedQuestion[] {
       const key = answerMatch?.[1].trim() ?? '';
       const letter = key.match(/^([a-f])(?:[).:]|\s|$)/iu)?.[1]?.toLowerCase();
       const answer = letter ? (choices[letter.charCodeAt(0) - 97] ?? '') : key;
-      return [{ prompt: stem, choices, answer, evidence: raw }];
+      return [{ prompt: stem, choices, answer, evidence: raw, number }];
     }
     return choices
       .filter(isQuestion)
@@ -83,34 +106,37 @@ function parseGroup(group: string, numbered = false): ParsedQuestion[] {
   if (subparts.length > 1) return subparts.flatMap((part) => parseGroup(part));
   const prompt = body.replace(/\s*Förväntad svarslängd[\s\S]*$/iu, '').trim();
   if (!numbered && !isQuestion(prompt) && !/[:：]\s*$/.test(prompt)) return [];
-  return [{ prompt, choices: [], answer: answerMatch?.[1].trim() ?? '', evidence: raw }];
+  return [{ prompt, choices: [], answer: answerMatch?.[1].trim() ?? '', evidence: raw, number }];
 }
 
 export function parseQuestions(text: string): ParsedQuestion[] {
+  text = text.split(answerKeyHeading)[0];
   const normalized = text
     .replace(/\r/g, '')
     .replace(/\s+(?=(?:Fråga|Question|Uppgift)\s+\d+\b)/giu, '\n')
     .replace(/\s+(?=\d{1,3}\s*\(\d+\s*p\))/giu, '\n');
   const lines = normalized.split('\n');
-  const groups: { text: string; numbered: boolean }[] = [];
+  const groups: { text: string; numbered: boolean; number?: string }[] = [];
   let current = '';
   let numbered = false;
+  let number: string | undefined;
   for (const line of lines) {
     const heading = line.match(
-      /^\s*(?:(?:Fråga|Question|Uppgift)\s+(\d+)\b|\d{1,3}\s*\(\d+\s*p\)|\d{1,3}[.)]\s+)/iu,
+      /^\s*(?:(?:Fråga|Question|Uppgift)\s+(\d+)\b|(\d{1,3})\s*\(\d+\s*p\)|(\d{1,3})[.)]\s+)/iu,
     );
     if (heading) {
-      if (current) groups.push({ text: current, numbered });
+      if (current) groups.push({ text: current, numbered, number });
       current = line.slice(heading[0].length).replace(/^\s*\(\d+\s*p\)\s*/iu, '');
       numbered = true;
+      number = heading[1] ?? heading[2] ?? heading[3];
     } else if (!numbered && isQuestion(line) && current) {
-      groups.push({ text: current, numbered });
+      groups.push({ text: current, numbered, number });
       current = line;
     } else current += '\n' + line;
   }
-  if (current) groups.push({ text: current, numbered });
+  if (current) groups.push({ text: current, numbered, number });
   // Unnumbered FAQ-style questions can be separated by paragraph breaks.
   return groups
-    .flatMap((group) => parseGroup(group.text, group.numbered))
+    .flatMap((group) => parseGroup(group.text, group.numbered, group.number))
     .filter((question) => question.prompt.length <= 2500);
 }
