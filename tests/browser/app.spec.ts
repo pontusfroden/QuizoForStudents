@@ -22,10 +22,22 @@ test('sample set, all modes, progress and persistent answers', async ({ page }, 
   await page.getByRole('combobox', { name: 'Session length' }).selectOption('5');
   await page.getByRole('button', { name: 'Start 5 questions' }).click();
   for (let index = 0; index < 5; index++) {
-    await page.locator('.quiz-option').first().click();
+    if (await page.locator('.quiz-option').count())
+      await page.locator('.quiz-option').first().click();
+    else {
+      await page
+        .getByRole('textbox', { name: 'Your quiz answer' })
+        .fill('I can explain this process and give an example.');
+      await page.getByRole('button', { name: 'Reveal study support' }).click();
+    }
     await expect(page.locator('.answer-reveal')).toBeVisible();
-    await expect(page.locator('.source-detail')).toContainText(/Page|Slide/);
-    await page.getByRole('button', { name: index === 4 ? 'See results' : 'Next question' }).click();
+    await expect(page.locator('.source-detail')).toContainText(/Page|Slide|Section/);
+    if (await page.getByRole('button', { name: 'Got it', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Got it', exact: true }).click();
+    else
+      await page
+        .getByRole('button', { name: index === 4 ? 'See results' : 'Next question' })
+        .click();
   }
   await expect(page.locator('.completion-score')).toBeVisible();
   await page.getByRole('button', { name: 'Back to overview' }).click();
@@ -120,7 +132,7 @@ test('real PDF, TXT, DOCX, PPTX upload, search, source deletion and backup round
   await expect(page.getByRole('heading', { name: 'Your materials are ready.' })).toBeVisible();
   await page.getByRole('button', { name: 'Let’s study' }).click();
   await expect(page.getByRole('heading', { name: 'My chemistry test', exact: true })).toBeVisible();
-  await expect(page.locator('.set-progress-label')).toContainText('0 of 7');
+  await expect(page.locator('.set-progress-label')).toContainText('0 of 8');
   await page.getByRole('textbox', { name: 'Search your materials' }).fill('evaporation');
   await expect(page.locator('.material-row')).toHaveCount(1);
   await expect(page.locator('.idea-card')).toContainText('Evaporation');
@@ -151,12 +163,16 @@ test('invalid uploads give actionable errors and pasted notes work', async ({ pa
   await page.goto('./');
   await page.getByRole('button', { name: 'Try your own notes' }).click();
   await page.getByRole('textbox', { name: 'Study set name' }).fill('Pasted study set');
-  await page
-    .getByLabel('Upload study files')
-    .setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: Buffer.from('image') });
+  await page.getByLabel('Upload study files').setInputFiles({
+    name: 'unsupported.bin',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from('unsupported'),
+  });
   await page.getByRole('button', { name: 'Build my study set' }).click();
-  await expect(page.getByRole('alert')).toContainText('use PDF, DOCX, PPTX');
-  await page.getByRole('button', { name: 'Remove scan.png' }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Use a document, image, spreadsheet, or text file',
+  );
+  await page.getByRole('button', { name: 'Remove unsupported.bin' }).click();
   await page.getByText('Or paste your notes instead').click();
   await page
     .getByRole('textbox', { name: 'Paste study notes' })
@@ -251,12 +267,12 @@ test('Swedish interface and real OCR on a mixed PDF preserve source pages and cr
   await expect(page.locator('.extracted-text')).toContainText(
     'ljusenergi till kemisk energi i växter',
   );
-  await expect(page.locator('.idea-card').filter({ hasText: 'Fotosyntes' })).toHaveCount(1);
+  await expect(page.locator('.idea-card').filter({ hasText: 'Fotosyntes' })).toHaveCount(2);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Lite övning gör stor skillnad.' })).toBeVisible();
   await page.getByRole('button', { name: /Vänd. Tänk. Kom ihåg./ }).click();
-  await page.getByRole('button', { name: 'Starta 3 frågor' }).click();
-  await expect(page.locator('.question-panel')).toContainText('Vad kommer du ihåg om');
+  await page.getByRole('button', { name: 'Starta 4 frågor' }).click();
+  await expect(page.locator('.question-panel')).toContainText(/Vad kommer du ihåg om|Förklara/);
   await page.getByRole('button', { name: 'Vänd kortet' }).click();
   await expect(page.locator('.answer-reveal')).toContainText('Jämför med källan');
   await page.getByRole('combobox', { name: 'Gränssnittets språk' }).selectOption('en');

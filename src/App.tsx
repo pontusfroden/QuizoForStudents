@@ -34,7 +34,14 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { Library, Mode, StudyDeck, StudySource, View } from './types';
 import { demoLibrary } from './lib/demo';
-import { buildStudyContent, recordReview, stats } from './lib/study';
+import {
+  buildStudyContent,
+  GENERATION_VERSION,
+  regenerateDeck,
+  recordReview,
+  stats,
+} from './lib/study';
+import { reliableText } from './lib/questions';
 import { downloadBackup, loadLibrary, saveLibrary, validateBackup } from './lib/storage';
 import UploadDialog from './components/UploadDialog';
 import StudySession from './components/StudySession';
@@ -113,7 +120,11 @@ export default function App() {
     let active = true;
     loadLibrary()
       .then((saved) => {
-        if (active) setLibrary(saved ? validateBackup(saved) : demoLibrary());
+        if (active) {
+          const loaded = saved ? validateBackup(saved) : demoLibrary();
+          loaded.decks = loaded.decks.map(regenerateDeck);
+          setLibrary(loaded);
+        }
       })
       .catch(() => {
         if (active) {
@@ -207,6 +218,7 @@ export default function App() {
         const content = buildStudyContent(combined);
         return {
           ...current,
+          generationVersion: GENERATION_VERSION,
           title,
           sources: combined,
           ...content,
@@ -219,6 +231,7 @@ export default function App() {
       });
     else {
       const created: StudyDeck = {
+        generationVersion: GENERATION_VERSION,
         id: crypto.randomUUID(),
         title,
         description: 'Your notes. Your next breakthrough.',
@@ -265,7 +278,7 @@ export default function App() {
         if (!current) return incoming;
         // Restore as additional copies, preserving all existing sets and their progress.
         const copies = incoming.decks.map((item) => ({
-          ...item,
+          ...regenerateDeck(item),
           id: crypto.randomUUID(),
           title: current.decks.some((deck) => deck.title === item.title)
             ? `${item.title} (restored)`
@@ -880,7 +893,28 @@ export default function App() {
                                     {t('Scan text · review against the original')}
                                   </small>
                                 )}
-                                <p>{block.text}</p>
+                                {block.image && (
+                                  <img
+                                    className="source-image"
+                                    src={block.image}
+                                    alt={t('Source image')}
+                                  />
+                                )}
+                                {reliableText(block) || !block.text ? (
+                                  <p>{block.text}</p>
+                                ) : (
+                                  <>
+                                    <p className="warning-text">
+                                      {t(
+                                        'Uncertain text and administrative content are excluded from study facts. Review the original source.',
+                                      )}
+                                    </p>
+                                    <details>
+                                      <summary>{t('Show unverified extracted text')}</summary>
+                                      <p>{block.text}</p>
+                                    </details>
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -917,7 +951,7 @@ export default function App() {
                         {query
                           ? t('Try another concept or file name.')
                           : t(
-                              'Upload notes to create study cards, or old tests for exam practice.',
+                              'Upload study material to create flashcards, quizzes, and visual practice.',
                             )}
                       </p>
                       <button className="button secondary" onClick={() => setUpload('add')}>
@@ -938,10 +972,31 @@ export default function App() {
                     {filteredCards.map((card) => (
                       <article className="idea-card" key={card.id}>
                         <span className="idea-term">{card.term}</span>
-                        <p>{card.evidence}</p>
+                        {card.kind === 'image' ? (
+                          <img
+                            className="match-image"
+                            src={
+                              deck.sources
+                                .find((source) => source.id === card.sourceId)
+                                ?.blocks.find((block) => block.label === card.location)?.image
+                            }
+                            alt={t('Source image')}
+                          />
+                        ) : (
+                          <p>{card.kind === 'question' ? card.prompt : card.evidence}</p>
+                        )}
+                        {card.kind === 'image' ? (
+                          <small>{t('Visual recall · compare with the original image')}</small>
+                        ) : (
+                          card.answerStatus === 'missing' && (
+                            <small>
+                              {t('Practice question · no verified answer in the source')}
+                            </small>
+                          )
+                        )}
                         <small>
                           {deck.sources.find((source) => source.id === card.sourceId)?.name} ·{' '}
-                          {card.location}
+                          {locationLabel(card.location)}
                         </small>
                       </article>
                     ))}
@@ -1185,13 +1240,13 @@ function HelpDialog({ onClose, onExport }: { onClose: () => void; onExport: () =
         <p>
           <strong>{t('1. Bring your materials.')}</strong>{' '}
           {t(
-            'Create a study set with PDFs, Word documents, PowerPoint slides, or text. Mark old tests as “Past test”. Check the extracted text in My materials.',
+            'Create a study set with documents, images, spreadsheets, or text. Check the extracted content and images in My materials. Every category works in every study mode.',
           )}{' '}
         </p>
         <p>
           <strong>{t('2. Practice actively.')}</strong>{' '}
           {t(
-            'Quizzes remove a key concept from a source sentence. Flashcards, matching, and written recall help you revisit those same ideas in different ways. Past-paper practice shows possible related notes for you to compare.',
+            'Practice facts, complete questions, short lists, or source images in different ways. Source answer keys enable grading. Without a key, reveal study support and assess your recall.',
           )}{' '}
         </p>
         <p>
@@ -1203,13 +1258,13 @@ function HelpDialog({ onClose, onExport }: { onClose: () => void; onExport: () =
         <p>
           <strong>{t('Your workspace belongs to this browser.')}</strong>{' '}
           {t(
-            'No sign-in or cloud upload. Export a backup before clearing browser data or switching devices. Files are processed locally; only the extracted text is saved.',
+            'No sign-in or cloud upload. Export a backup before clearing browser data or switching devices. Extracted text, image previews, cards, and progress stay in this browser.',
           )}{' '}
         </p>
         <p>
           <strong>{t('This first version uses text extraction and rules.')}</strong>{' '}
           {t(
-            'It doesn’t yet use AI to understand full documents, generate reasoning questions, or check answers. Image-only scans now use local OCR in Swedish and English. Handwriting, diagrams, formulas, legacy DOC/PPT files, and slide speaker notes may need manual notes or another format. Short slide fragments may create few cards; complete sentences work best. Up to 500 source-based cards are distributed across your materials.',
+            'Every material type can create practice cards: facts, questions, lists, and source images. OCR that needs review is excluded from automatic facts. Questions without a source answer remain practice questions with self-assessment. This local version does not invent an answer key or automatically grade essays.',
           )}{' '}
         </p>
       </div>

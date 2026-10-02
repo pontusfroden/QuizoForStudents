@@ -36,9 +36,14 @@ describe('source-grounded study generation', () => {
       ],
     };
     const content = buildStudyContent([notes, exam]);
-    expect(content.cards.map((card) => card.term)).toEqual(['Kommunikation', 'Återkoppling']);
+    expect(content.cards.filter((card) => !card.kind).map((card) => card.term)).toEqual([
+      'Kommunikation',
+      'Återkoppling',
+    ]);
     expect(content.examPrompts).toHaveLength(3);
-    expect(content.examPrompts[0].relatedCardIds).toContain(content.cards[0].id);
+    expect(content.examPrompts[0].relatedCardIds).toContain(
+      content.cards.find((card) => card.term === 'Kommunikation')!.id,
+    );
     expect(content.examPrompts[1].prompt).toMatch(/^Motivera/);
   });
   it('rejoins wrapped PDF lines while preserving headings and numbered prompts', () => {
@@ -54,8 +59,8 @@ describe('source-grounded study generation', () => {
     const deck = demoLibrary().decks[0];
     expect(deck.cards.length).toBeGreaterThan(18);
     for (const card of deck.cards) {
-      expect(card.evidence).toContain(card.answer);
-      expect(card.prompt).toContain('______');
+      if (card.answerStatus !== 'missing') expect(card.evidence).toContain(card.answer);
+      if (!card.kind) expect(card.prompt).toContain('______');
       expect(
         deck.sources
           .find((source) => source.id === card.sourceId)
@@ -64,17 +69,24 @@ describe('source-grounded study generation', () => {
           ),
       ).toBe(true);
       const options = optionsFor(card, deck.cards);
-      expect(options).toContain(card.answer);
+      if (card.answer) expect(options).toContain(card.answer);
+      else expect(options).not.toContain('');
       expect(new Set(options).size).toBe(options.length);
     }
   });
   it('separates old-test prompts from facts and never invents an answer', () => {
     const deck = demoLibrary().decks[0];
     expect(deck.examPrompts).toHaveLength(3);
-    expect(deck.cards.every((card) => card.sourceId !== 'demo-exam')).toBe(true);
+    expect(
+      deck.cards
+        .filter((card) => card.sourceId === 'demo-exam')
+        .every(
+          (card) => card.kind === 'question' && card.answerStatus === 'missing' && !card.answer,
+        ),
+    ).toBe(true);
     expect(deck.examPrompts[0].relatedCardIds.length).toBeGreaterThan(0);
     const onlyExam = buildStudyContent(deck.sources.filter((source) => source.kind === 'exam'));
-    expect(onlyExam.cards).toHaveLength(0);
+    expect(onlyExam.cards).toHaveLength(3);
     expect(onlyExam.examPrompts.every((prompt) => prompt.relatedCardIds.length === 0)).toBe(true);
   });
   it('samples all pages rather than exhausting the first long file', () => {
@@ -118,8 +130,9 @@ describe('source-grounded study generation', () => {
         blocks: [{ label: 'Section 1', text }],
       },
     ]);
-    expect(result.cards).toHaveLength(1);
-    expect(result.cards[0].term).toBe('Fotosyntes');
+    expect(result.cards.filter((card) => !card.kind)).toHaveLength(1);
+    expect(result.cards.find((card) => !card.kind)?.term).toBe('Fotosyntes');
+    expect(result.cards.find((card) => card.kind === 'question')?.answerStatus).toBe('missing');
   });
 });
 describe('progress and retention', () => {

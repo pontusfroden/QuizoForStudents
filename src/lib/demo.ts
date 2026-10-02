@@ -1,5 +1,5 @@
 import type { Library, StudySource } from '../types';
-import { buildStudyContent } from './study';
+import { buildStudyContent, GENERATION_VERSION } from './study';
 
 const sources: StudySource[] = [
   {
@@ -59,6 +59,7 @@ const sources: StudySource[] = [
 ];
 export function demoLibrary(): Library {
   const deck = {
+    generationVersion: GENERATION_VERSION,
     id: 'demo-biology',
     title: 'Biology essentials',
     description: 'Cells, energy & a little bit of DNA',

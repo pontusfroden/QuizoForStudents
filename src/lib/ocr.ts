@@ -52,6 +52,16 @@ export function hasVisibleInk(canvas: HTMLCanvasElement): boolean {
   }
   return false;
 }
+export function previewImage(canvas: HTMLCanvasElement): string {
+  const preview = document.createElement('canvas');
+  const scale = Math.min(1, 1200 / Math.max(canvas.width, canvas.height));
+  preview.width = Math.max(1, Math.round(canvas.width * scale));
+  preview.height = Math.max(1, Math.round(canvas.height * scale));
+  preview.getContext('2d')!.drawImage(canvas, 0, 0, preview.width, preview.height);
+  const image = preview.toDataURL('image/jpeg', 0.8);
+  preview.width = preview.height = 0;
+  return image;
+}
 export function createOcrReader(language: OcrLanguage, signal?: AbortSignal) {
   let workerPromise: Promise<Worker> | undefined;
   let progress: ((message: string) => void) | undefined;

@@ -101,7 +101,7 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
       }
     }
     if (pasted.trim()) {
-      if (pasted.trim().length < 35) failures.push(t('Add at least a few sentences of notes.'));
+      if (pasted.trim().length < 8) failures.push(t('Add at least a few words of study material.'));
       else
         successful.push({
           id: crypto.randomUUID(),
@@ -183,7 +183,11 @@ export default function UploadDialog({ existing, onClose, onSave }: Props) {
             >
               <Plus size={16} /> {t('Choose files')}{' '}
             </button>
-            <small>{t('PDF, DOCX, PPTX, TXT, MD · Up to 30 MB each')}</small>
+            <small>{t('Documents, images, spreadsheets, or text · Up to 30 MB each')}</small>
+            <small>
+              PDF · DOCX · PPTX · ODT · XLSX · JPG · PNG · WEBP · BMP · TXT · MD · CSV · TSV · HTML
+              · JSON
+            </small>
             <input
               ref={input}
               type="file"

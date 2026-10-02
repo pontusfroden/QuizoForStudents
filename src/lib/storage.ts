@@ -43,7 +43,13 @@ export function validateBackup(value: unknown): Library {
         !Array.isArray(source.warnings) ||
         !Array.isArray(source.blocks) ||
         source.blocks.some(
-          (block) => typeof block.label !== 'string' || typeof block.text !== 'string',
+          (block) =>
+            typeof block.label !== 'string' ||
+            typeof block.text !== 'string' ||
+            (block.image !== undefined &&
+              (typeof block.image !== 'string' ||
+                block.image.length > 2_000_000 ||
+                !/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(block.image))),
         )
       )
         throw new Error('The backup has invalid source material.');
@@ -80,7 +86,13 @@ export function validateBackup(value: unknown): Library {
         ['id', 'term', 'prompt', 'answer', 'evidence', 'sourceId', 'location'].some(
           (key) => typeof card[key as keyof typeof card] !== 'string',
         ) ||
-        !deck.sources.some((source) => source.id === card.sourceId)
+        !deck.sources.some((source) => source.id === card.sourceId) ||
+        (card.kind !== undefined && !['cloze', 'question', 'image'].includes(card.kind)) ||
+        (card.choices !== undefined &&
+          (!Array.isArray(card.choices) ||
+            card.choices.some((choice) => typeof choice !== 'string'))) ||
+        (card.answerStatus !== undefined && !['source', 'missing'].includes(card.answerStatus)) ||
+        (card.matchText !== undefined && typeof card.matchText !== 'string')
       )
         throw new Error('The backup has invalid study cards.');
     for (const prompt of deck.examPrompts)
@@ -89,7 +101,11 @@ export function validateBackup(value: unknown): Library {
           (key) => typeof prompt[key as keyof typeof prompt] !== 'string',
         ) ||
         !Array.isArray(prompt.relatedCardIds) ||
-        prompt.relatedCardIds.some((id) => typeof id !== 'string')
+        prompt.relatedCardIds.some((id) => typeof id !== 'string') ||
+        (prompt.choices !== undefined &&
+          (!Array.isArray(prompt.choices) ||
+            prompt.choices.some((choice) => typeof choice !== 'string'))) ||
+        (prompt.answer !== undefined && typeof prompt.answer !== 'string')
       )
         throw new Error('The backup has invalid exam prompts.');
     for (const progress of Object.values(deck.progress))

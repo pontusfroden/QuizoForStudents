@@ -3,6 +3,8 @@ export interface SourceBlock {
   text: string;
   method?: 'text' | 'ocr';
   confidence?: number;
+  /** Local JPEG preview for diagrams, scans, and text that OCR cannot safely recover. */
+  image?: string;
 }
 export interface StudySource {
   id: string;
@@ -28,6 +30,11 @@ export interface StudyCard {
   evidence: string;
   sourceId: string;
   location: string;
+  kind?: 'cloze' | 'question' | 'image';
+  choices?: string[];
+  /** An empty answer means the source contains a question, but no verified solution. */
+  answerStatus?: 'source' | 'missing';
+  matchText?: string;
 }
 export interface ExamPrompt {
   id: string;
@@ -35,6 +42,8 @@ export interface ExamPrompt {
   sourceId: string;
   location: string;
   relatedCardIds: string[];
+  choices?: string[];
+  answer?: string;
 }
 export interface CardProgress {
   attempts: number;
@@ -50,6 +59,7 @@ export interface StudySession {
   total: number;
 }
 export interface StudyDeck {
+  generationVersion?: number;
   id: string;
   title: string;
   description: string;

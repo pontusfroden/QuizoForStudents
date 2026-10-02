@@ -1,3 +1,11 @@
+import {
+  isAdministrative,
+  isCoverPage,
+  isQuestion,
+  parseQuestions,
+  reliableText,
+  type ParsedQuestion,
+} from './questions';
 import type { CardProgress, ExamPrompt, StudyCard, StudyDeck, StudySource } from '../types';
 
 const stopwords = new Set(
@@ -39,64 +47,151 @@ function hash(text: string): string {
   for (const character of text) value = Math.imul(value ^ character.charCodeAt(0), 16777619);
   return (value >>> 0).toString(36);
 }
+export const GENERATION_VERSION = 3;
+
+export function regenerateDeck(deck: StudyDeck): StudyDeck {
+  if (deck.generationVersion === GENERATION_VERSION) return deck;
+  const content = buildStudyContent(deck.sources);
+  return {
+    ...deck,
+    ...content,
+    generationVersion: GENERATION_VERSION,
+    progress: Object.fromEntries(
+      Object.entries(deck.progress).filter(([id]) => content.cards.some((card) => card.id === id)),
+    ),
+  };
+}
+
 export function buildStudyContent(sources: StudySource[]): {
   cards: StudyCard[];
   examPrompts: ExamPrompt[];
 } {
   const frequency = new Map<string, number>();
-  for (const source of sources.filter((s) => s.kind === 'notes'))
+  for (const source of sources)
     for (const block of source.blocks)
-      for (const token of keywords(block.text))
+      for (const token of keywords(reliableText(block)))
         frequency.set(token, (frequency.get(token) ?? 0) + 1);
   const buckets: StudyCard[][] = [];
   const seen = new Set<string>();
-  for (const source of sources.filter((s) => s.kind === 'notes'))
+  const questions: (ParsedQuestion & { sourceId: string; location: string })[] = [];
+  for (const source of sources)
     for (const block of source.blocks) {
+      const text = reliableText(block);
+      const parsed = parseQuestions(text);
       const candidates: StudyCard[] = [];
-      for (const sentence of sentences(block.text)) {
+      for (const question of parsed) {
+        const key = question.prompt.toLocaleLowerCase();
+        if (seen.has(key)) continue;
+        const term = questionTerm(question.prompt);
+        candidates.push({
+          id: hash(source.id + block.label + question.prompt),
+          kind: 'question',
+          term,
+          prompt: question.prompt,
+          answer: question.answer,
+          answerStatus: question.answer ? 'source' : 'missing',
+          choices: question.choices,
+          evidence: question.evidence,
+          matchText: question.prompt.replace(new RegExp(escapeRegex(term), 'giu'), '[…]'),
+          sourceId: source.id,
+          location: block.label,
+        });
+        questions.push({ ...question, sourceId: source.id, location: block.label });
+        seen.add(key);
+      }
+      for (const sentence of sentences(text)) {
         if (
-          sentence.length < 35 ||
-          sentence.length > 600 ||
-          sentence.endsWith('?') ||
-          words(sentence).length < 7
+          isAdministrative(sentence) ||
+          isQuestion(sentence) ||
+          (parsed.length > 0 && /(?:^|\s)[a-f][).:]?\s+(?=\p{Lu}|\d)/u.test(sentence)) ||
+          parsed.some((q) => q.evidence.includes(sentence))
         )
           continue;
-        if (seen.has(sentence.toLocaleLowerCase())) continue;
+        if (sentence.length > 600 || seen.has(sentence.toLocaleLowerCase())) continue;
         const definition = sentence.match(
-          /^([\p{L}\p{N}][\p{L}\p{N}\s()/-]{2,65}?)\s*(?::\s+|\s+(?:is|are|means|refers to|är|betyder|innebär|avser|utgör|definieras som)\s+)(.{20,})$/iu,
+          /^([\p{L}\p{N}][\p{L}\p{N}\s()/-]{1,65}?)\s*(?::\s+|\s+(?:is|are|means|refers to|är|betyder|innebär|avser|utgör|definieras som)\s+)(.{2,})$/iu,
         );
+        if (
+          !definition &&
+          (sentence.length < 35 || words(sentence).length < 7 || !/[.!]$/.test(sentence))
+        )
+          continue;
         let term = definition?.[1]?.trim();
         if (term && (words(term).length > 7 || words(term).every((w) => stopwords.has(w))))
           term = undefined;
         if (!term) {
-          const candidates = [...new Set(keywords(sentence))].sort(
+          const choices = [...new Set(keywords(sentence))].sort(
             (a, b) =>
               (frequency.get(b) ?? 0) +
               Math.min(b.length, 14) / 3 -
               ((frequency.get(a) ?? 0) + Math.min(a.length, 14) / 3),
           );
-          const chosen = candidates[0];
-          if (!chosen) continue;
+          if (!choices[0]) continue;
           term = sentence.match(
-            new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(chosen)}(?![\\p{L}\\p{N}])`, 'iu'),
+            new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(choices[0])}(?![\\p{L}\\p{N}])`, 'iu'),
           )?.[0];
         }
-        if (!term || term.length < 3) continue;
-        const prompt = sentence.replace(new RegExp(escapeRegex(term), 'giu'), '______');
+        if (!term || term.length < 2) continue;
         candidates.push({
           id: hash(source.id + block.label + sentence),
           term,
           answer: term,
-          prompt,
+          prompt: sentence.replace(new RegExp(escapeRegex(term), 'giu'), '______'),
           evidence: sentence,
           sourceId: source.id,
           location: block.label,
         });
         seen.add(sentence.toLocaleLowerCase());
       }
+      // Fragmented slides and lists are still useful: a source excerpt can be recalled
+      // without pretending that a short phrase is a complete definition.
+      if (!candidates.length && text.length >= 8 && !isAdministrative(text)) {
+        const lines = text
+          .split('\n')
+          .map((line) => line.replace(/^[-•▪*]\s*/, '').trim())
+          .filter((line) => /\p{L}/u.test(line));
+        for (let offset = 0; offset < lines.length; offset += 4) {
+          const evidence = lines.slice(offset, offset + 4).join('\n');
+          if (
+            evidence.length < 8 ||
+            evidence.length > 1200 ||
+            seen.has(evidence.toLocaleLowerCase())
+          )
+            continue;
+          const term = lines[offset].slice(0, 100);
+          const swedish = /[åäö]|\b(och|att|är|för|med)\b/iu.test(text);
+          candidates.push({
+            id: hash(source.id + block.label + evidence),
+            kind: 'question',
+            term,
+            prompt: swedish
+              ? `Återge huvudpunkterna om ${term}.`
+              : `Recall the key points about ${term}.`,
+            answer: evidence,
+            answerStatus: 'source',
+            evidence,
+            matchText: lines.slice(offset + 1, offset + 4).join(' · ') || evidence,
+            sourceId: source.id,
+            location: block.label,
+          });
+          seen.add(evidence.toLocaleLowerCase());
+        }
+      }
+      if (!candidates.length && block.image && !isCoverPage(block.text)) {
+        candidates.push({
+          id: hash(source.id + block.label + 'image'),
+          kind: 'image',
+          term: `${source.name} · ${block.label}`,
+          prompt: '',
+          answer: '',
+          answerStatus: 'missing',
+          evidence: '',
+          sourceId: source.id,
+          location: block.label,
+        });
+      }
       if (candidates.length) buckets.push(candidates);
     }
-  // Round-robin across every page/slide: long early documents cannot crowd out later sources.
   const cards: StudyCard[] = [];
   let index = 0;
   while (cards.length < 500 && buckets.some((bucket) => bucket.length > index)) {
@@ -104,47 +199,63 @@ export function buildStudyContent(sources: StudySource[]): {
       if (bucket[index] && cards.length < 500) cards.push(bucket[index]);
     index++;
   }
-  const examPrompts: ExamPrompt[] = [];
-  for (const source of sources.filter((s) => s.kind === 'exam'))
-    for (const block of source.blocks) {
-      for (const line of sentences(block.text)) {
-        const prompt = line.replace(/^\s*(?:\d+[a-z]?[.)]|[a-z][)])\s*/iu, '').trim();
-        if (
-          prompt.length < 20 ||
-          prompt.length > 800 ||
-          !/\?|^(?:explain|describe|compare|discuss|define|calculate|evaluate|outline|why|how|what|förklara|beskriv|jämför|beräkna|redogör|diskutera|motivera|resonera|analysera|ange|nämn|definiera|värdera|vad|hur|varför|vilken|vilka)/iu.test(
-            prompt,
-          )
-        )
-          continue;
-        const tokens = new Set(keywords(prompt));
-        const relatedCardIds = cards
-          .map((card) => ({
-            id: card.id,
-            score: keywords(card.evidence).filter((token) => tokens.has(token)).length,
-          }))
-          .filter((item) => item.score >= 2)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 3)
-          .map((item) => item.id);
-        examPrompts.push({
-          id: hash(source.id + prompt),
-          prompt,
-          sourceId: source.id,
-          location: block.label,
-          relatedCardIds,
-        });
-        if (examPrompts.length >= 200) return { cards, examPrompts };
-      }
-    }
+  const examPrompts: ExamPrompt[] = questions.slice(0, 200).map((question) => {
+    const tokens = new Set(keywords(question.prompt));
+    const relatedCardIds = cards
+      .filter(
+        (card) =>
+          card.kind !== 'image' &&
+          card.answerStatus !== 'missing' &&
+          card.evidence !== question.evidence,
+      )
+      .map((card) => ({
+        id: card.id,
+        score: keywords(card.evidence).filter((token) => tokens.has(token)).length,
+      }))
+      .filter((item) => item.score >= 2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((item) => item.id);
+    return {
+      id: hash(question.sourceId + question.prompt),
+      prompt: question.prompt,
+      sourceId: question.sourceId,
+      location: question.location,
+      relatedCardIds,
+      choices: question.choices,
+      answer: question.answer,
+    };
+  });
   return { cards, examPrompts };
+}
+
+function questionTerm(prompt: string): string {
+  const quoted = prompt.match(/[“”"«]([^”"»]{3,70})[”"»]/u)?.[1];
+  if (quoted) return quoted;
+  const statement = prompt.match(
+    /^(.{3,70}?)\s+(?:är|innebär|definieras|består|brukar|is|means|consists)\b/iu,
+  )?.[1];
+  if (statement && !/^(?:I|När|Idag|Hur|Vad|Vilka|Vilket|Vilken)\b/iu.test(statement))
+    return statement;
+  const relevant = sentences(prompt).filter(isQuestion).join(' ') || prompt;
+  const tokens = [...new Set(keywords(relevant))].sort((a, b) => b.length - a.length);
+  const token = tokens[0];
+  return token
+    ? (prompt.match(new RegExp(escapeRegex(token), 'iu'))?.[0] ?? token)
+    : prompt.slice(0, 100);
 }
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 export function optionsFor(card: StudyCard, cards: StudyCard[]): string[] {
+  if (card.kind === 'image' || card.answerStatus === 'missing') return card.choices ?? [];
+  if (card.kind === 'question')
+    return card.choices?.includes(card.answer) ? shuffle(card.choices) : [];
   const alternatives = [...new Set(cards.map((c) => c.answer))].filter(
-    (answer) => answer.toLocaleLowerCase() !== card.answer.toLocaleLowerCase(),
+    (answer) =>
+      answer &&
+      answer.length < 120 &&
+      answer.toLocaleLowerCase() !== card.answer.toLocaleLowerCase(),
   );
   return shuffle([card.answer, ...shuffle(alternatives).slice(0, 3)]);
 }

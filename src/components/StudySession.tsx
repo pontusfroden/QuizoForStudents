@@ -33,6 +33,7 @@ export default function StudySession(props: Props) {
   const [score, setScore] = useState(0);
   const [complete, setComplete] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [imageHidden, setImageHidden] = useState(false);
   const [matched, setMatched] = useState<string[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
   const [selectedDefinition, setSelectedDefinition] = useState<string | null>(null);
@@ -55,7 +56,22 @@ export default function StudySession(props: Props) {
   }, [queue]);
   const matchDefinitions = useMemo(() => shuffle(matchCards), [matchCards]);
   const sessionCards = queue.slice(0, questionCount);
-  const exams = deck.examPrompts.slice(0, questionCount);
+  const exams = (
+    deck.examPrompts.length
+      ? deck.examPrompts
+      : queue.map((card) => ({
+          id: card.id,
+          prompt:
+            card.kind === 'image'
+              ? t('Study the image, hide it, and recall its main points.')
+              : card.prompt,
+          sourceId: card.sourceId,
+          location: card.location,
+          choices: card.choices,
+          answer: card.kind ? card.answer : card.evidence,
+          relatedCardIds: card.kind === 'image' ? [] : [card.id],
+        }))
+  ).slice(0, questionCount);
   const total =
     props.mode === 'match'
       ? matchCards.length
@@ -65,6 +81,23 @@ export default function StudySession(props: Props) {
   const card = sessionCards[index];
   const exam = exams[index];
   const options = useMemo(() => (card ? optionsFor(card, deck.cards) : []), [card, deck.cards]);
+  const manualQuiz =
+    props.mode === 'quiz' &&
+    !!card?.kind &&
+    (card.answerStatus === 'missing' || options.length < 2);
+  const visualItem =
+    props.mode === 'exam'
+      ? !deck.examPrompts.length
+        ? exams[index]
+        : undefined
+      : card?.kind === 'image'
+        ? card
+        : undefined;
+  const visualBlock = visualItem
+    ? deck.sources
+        .find((source) => source.id === visualItem.sourceId)
+        ?.blocks.find((block) => block.label === visualItem.location && block.image)
+    : undefined;
   const name = {
     quiz: t('Quick quiz'),
     flashcards: t('Flashcards'),
@@ -90,6 +123,7 @@ export default function StudySession(props: Props) {
       setRevealed(false);
       setWritten('');
       setSourceOpen(false);
+      setImageHidden(false);
     }
   }
   useEffect(() => {
@@ -171,21 +205,17 @@ export default function StudySession(props: Props) {
               ? t('A focused round with concepts that need another look.')
               : props.mode === 'exam'
                 ? t(
-                    'Practice questions from your old tests. Write your answer, compare with related notes, and rate yourself.',
+                    'Practice questions from your material. Attempt an answer, reveal source support, and rate your recall.',
                   )
                 : props.mode === 'match'
-                  ? t(
-                      'Connect five concepts to their source definitions. Take your time; understanding comes first.',
-                    )
+                  ? t('Match questions, concepts, or images to their source excerpts.')
                   : props.mode === 'recall'
                     ? t(
                         'Explain a concept in your own words, then compare it with the original notes.',
                       )
-                    : props.mode === 'flashcards'
-                      ? t('Recall the concept, flip the card, and tell us how it went.')
-                      : t(
-                          'Fill in the missing concept. Every answer comes straight from your notes.',
-                        )}
+                    : t(
+                        'Practice questions and source facts work in every study mode. No separate notes are required.',
+                      )}
           </p>
           {props.mode !== 'match' && (
             <label className="session-length">
@@ -203,7 +233,7 @@ export default function StudySession(props: Props) {
           )}
           <button
             className="button primary"
-            disabled={total === 0 || (props.mode === 'match' && total < 2)}
+            disabled={total === 0}
             onClick={() => setStarted(true)}
           >
             {t('Start')} {total} {props.mode === 'match' ? t('pairs') : t('questions')}
@@ -216,7 +246,7 @@ export default function StudySession(props: Props) {
                 : props.weakOnly
                   ? t('No weak concepts yet. Finish a quiz to find your focus areas.')
                   : t(
-                      'No usable study cards yet. Add notes with complete sentences or definitions.',
+                      'No readable study content was found. Try another file or use an image for visual practice.',
                     )}
             </p>
           )}
@@ -230,11 +260,7 @@ export default function StudySession(props: Props) {
           <span className="eyebrow">{t('ONE STEP CLOSER')}</span>
           <h1>{score === total ? t('Look at you go.') : t('That’s how learning happens.')}</h1>
           <p>
-            {score} {t('of')} {total}{' '}
-            {props.mode === 'exam' || props.mode === 'flashcards' || props.mode === 'recall'
-              ? t('rated confident')
-              : t('correct on the first try')}
-            .{' '}
+            {score} {t('of')} {total} {t('correct or self-rated confident')}.{' '}
             {score === total
               ? t('Revisit these later to help them stick.')
               : t('The tricky concepts are waiting in your review queue.')}
@@ -295,7 +321,19 @@ export default function StudySession(props: Props) {
                     tryMatch(selectedTerm, card.id);
                   }}
                 >
-                  {card.prompt.replace(/______/g, '[…]')}
+                  {card.kind === 'image' ? (
+                    <img
+                      className="match-image"
+                      src={
+                        deck.sources
+                          .find((source) => source.id === card.sourceId)
+                          ?.blocks.find((block) => block.label === card.location)?.image
+                      }
+                      alt={t('Source image')}
+                    />
+                  ) : (
+                    (card.matchText ?? card.prompt.replace(/______/g, '[…]'))
+                  )}
                   {matched.includes(card.id) && <Check size={18} />}
                 </button>
               ))}
@@ -330,31 +368,74 @@ export default function StudySession(props: Props) {
               {props.mode === 'exam'
                 ? exam.prompt
                 : props.mode === 'quiz'
-                  ? card.prompt
-                  : t('What do you remember about {term}?', { term: card.term })}
+                  ? card.kind === 'image'
+                    ? t('Study the image, hide it, and recall its main points.')
+                    : card.prompt
+                  : card.kind === 'image'
+                    ? t('Study the image, hide it, and recall its main points.')
+                    : card.kind === 'question'
+                      ? card.prompt
+                      : t('What do you remember about {term}?', { term: card.term })}
             </h2>
+            {card?.answerStatus === 'missing' && props.mode !== 'exam' && (
+              <p className="answer-label">
+                {card.kind === 'image'
+                  ? t('Visual recall · compare with the source image')
+                  : t('Practice question · no verified answer in the source')}
+              </p>
+            )}
+            {visualBlock?.image && !revealed && (
+              <div className="visual-recall">
+                {!imageHidden && (
+                  <img className="source-image" src={visualBlock.image} alt={t('Source image')} />
+                )}
+                <button
+                  className="button secondary"
+                  onClick={() => setImageHidden((value) => !value)}
+                >
+                  {imageHidden ? t('Show image') : t('Hide image and recall')}
+                </button>
+              </div>
+            )}
+            {(props.mode === 'exam'
+              ? exam.choices
+              : props.mode !== 'quiz'
+                ? card?.choices
+                : undefined
+            )?.length ? (
+              <ol className="question-choices" type="a">
+                {(props.mode === 'exam' ? exam.choices : card.choices)!.map((choice) => (
+                  <li key={choice}>{choice}</li>
+                ))}
+              </ol>
+            ) : null}
             {props.mode === 'quiz' && (
               <div className="quiz-options">
                 {options.length >= 2 ? (
                   options.map((option, i) => (
                     <button
-                      className={`quiz-option ${selected !== null && option === card.answer ? 'correct' : ''} ${selected === option && option !== card.answer ? 'incorrect' : ''}`}
+                      className={`quiz-option ${!manualQuiz && selected !== null && option === card.answer ? 'correct' : ''} ${selected === option ? (manualQuiz ? 'selected' : option !== card.answer ? 'incorrect' : '') : ''}`}
                       disabled={selected !== null}
                       key={option}
                       onClick={() => {
                         setSelected(option);
-                        props.onReview(card.id, option === card.answer);
+                        if (manualQuiz) setRevealed(true);
+                        else props.onReview(card.id, option === card.answer);
                       }}
                     >
                       <span>{String.fromCharCode(65 + i)}</span>
                       {option}
-                      {selected !== null && option === card.answer && <Check size={18} />}
+                      {!manualQuiz && selected !== null && option === card.answer && (
+                        <Check size={18} />
+                      )}
                     </button>
                   ))
                 ) : (
                   <>
                     <p className="muted">
-                      {t('This set has one answer concept. Try recalling it yourself.')}{' '}
+                      {manualQuiz
+                        ? t('Try answering in your own words, then reveal the source support.')
+                        : t('This set has one answer concept. Try recalling it yourself.')}{' '}
                     </p>
                     <input
                       value={written}
@@ -366,6 +447,10 @@ export default function StudySession(props: Props) {
                       className="button primary"
                       disabled={!written.trim() || selected !== null}
                       onClick={() => {
+                        if (manualQuiz) {
+                          setRevealed(true);
+                          return;
+                        }
                         setSelected(written.trim());
                         props.onReview(
                           card.id,
@@ -373,7 +458,7 @@ export default function StudySession(props: Props) {
                         );
                       }}
                     >
-                      {t('Check answer')}{' '}
+                      {manualQuiz ? t('Reveal study support') : t('Check answer')}{' '}
                     </button>
                   </>
                 )}
@@ -402,14 +487,18 @@ export default function StudySession(props: Props) {
             {(revealed || selected !== null) && (
               <div className="answer-reveal" role="status">
                 <strong>
-                  {props.mode === 'quiz'
+                  {props.mode === 'quiz' && !manualQuiz
                     ? selected?.toLocaleLowerCase() === card.answer.toLocaleLowerCase()
                       ? t('That’s it!')
                       : t('The answer is {answer}.', { answer: card.answer })
                     : t('Compare with the source')}
                 </strong>
                 {props.mode === 'exam' ? (
-                  related.length ? (
+                  visualBlock?.image ? (
+                    <img className="source-image" src={visualBlock.image} alt={t('Source image')} />
+                  ) : exam.answer ? (
+                    <p>{exam.answer}</p>
+                  ) : related.length ? (
                     related.map((relatedCard) => (
                       <p key={relatedCard.id}>
                         {relatedCard.evidence}
@@ -422,12 +511,44 @@ export default function StudySession(props: Props) {
                   ) : (
                     <p>
                       {t(
-                        'No clear matching note was found. Compare with your course material or marking guide; this app does not invent an answer key.',
+                        'There is no verified answer in this source. Explain the relevant concepts, give an example, and check that you addressed every part of the question.',
                       )}{' '}
                     </p>
                   )
+                ) : card.kind === 'image' ? (
+                  <>
+                    <p>
+                      {t(
+                        'Compare what you recalled with the original image. You can practice this page without adding notes.',
+                      )}
+                    </p>
+                    <img
+                      className="source-image"
+                      src={visualBlock?.image}
+                      alt={t('Source image')}
+                    />
+                  </>
+                ) : card.answerStatus === 'missing' ? (
+                  <>
+                    <p>
+                      {t(
+                        'There is no verified answer in this source. Explain the relevant concepts, give an example, and check that you addressed every part of the question.',
+                      )}
+                    </p>
+                    <ul className="study-checklist">
+                      <li>{t('Define the key concepts in the question.')}</li>
+                      <li>{t('Explain the relationships or steps in your own words.')}</li>
+                      <li>{t('Give a concrete example and justify your answer.')}</li>
+                    </ul>
+                    <details>
+                      <summary>{t('Original question and alternatives')}</summary>
+                      <p className="preserve-lines">{card.evidence}</p>
+                    </details>
+                  </>
                 ) : (
-                  <p>{card.evidence}</p>
+                  <p className="preserve-lines">
+                    {card.kind === 'question' ? card.answer : card.evidence}
+                  </p>
                 )}
                 {props.mode === 'recall' && (
                   <small>
@@ -448,7 +569,7 @@ export default function StudySession(props: Props) {
           </div>
           {(revealed || selected !== null) && (
             <div className="answer-actions">
-              {props.mode === 'quiz' ? (
+              {props.mode === 'quiz' && !manualQuiz ? (
                 <button
                   className="button primary"
                   onClick={() =>

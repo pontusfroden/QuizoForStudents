@@ -1,6 +1,71 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'Create a study set with documents, images, spreadsheets, or text. Check the extracted content and images in My materials. Every category works in every study mode.':
+    'Skapa en studiesamling med dokument, bilder, tabeller eller text. Kontrollera innehållet och bilderna i Mitt material. Alla kategorier fungerar i alla studielägen.',
+  'Practice facts, complete questions, short lists, or source images in different ways. Source answer keys enable grading. Without a key, reveal study support and assess your recall.':
+    'Öva på fakta, hela frågor, korta listor eller källbilder på olika sätt. Facit i källan möjliggör rättning. Utan facit kan du visa studiestöd och bedöma vad du minns.',
+  'No sign-in or cloud upload. Export a backup before clearing browser data or switching devices. Extracted text, image previews, cards, and progress stay in this browser.':
+    'Ingen inloggning eller uppladdning till molnet. Exportera en säkerhetskopia innan du rensar webbläsardata eller byter enhet. Extraherad text, källbilder, kort och framsteg sparas i den här webbläsaren.',
+  'Check the original PDF. Retained page images can be used for visual practice when text cannot be read.':
+    'Kontrollera originalet. Sparade sidbilder kan användas för bildrepetition när texten inte går att läsa.',
+  'Uncertain text and administrative content are excluded from study facts. Review the original source.':
+    'Osäker text och administrativa uppgifter används inte som fakta i övningarna. Kontrollera originalet.',
+  'Visual recall · compare with the original image': 'Bildövning · jämför med originalbilden',
+  'Practice questions from your material. Attempt an answer, reveal source support, and rate your recall.':
+    'Öva på frågor från ditt material. Försök svara, visa stöd från källan och bedöm vad du kan.',
+  'Match questions, concepts, or images to their source excerpts.':
+    'Para ihop frågor, begrepp eller bilder med rätt utdrag ur källan.',
+  'Every material type can create practice cards: facts, questions, lists, and source images. OCR that needs review is excluded from automatic facts. Questions without a source answer remain practice questions with self-assessment. This local version does not invent an answer key or automatically grade essays.':
+    'Alla typer av studiematerial kan ge övningskort: fakta, frågor, punktlistor och källbilder. Osäker OCR används inte som fakta. Frågor utan facit går att öva på med självbedömning. Den lokala versionen hittar inte på facit och rättar inte uppsatssvar automatiskt.',
+  'The image preview limit was reached. Split this document to review additional images.':
+    'Gränsen för källbilder har nåtts. Dela dokumentet för att granska fler bilder.',
+  'Image could not be read.': 'Bilden kunde inte läsas.',
+  Image: 'Bild',
+  Sheet: 'Blad',
+  'Use a document, image, spreadsheet, or text file listed in the upload box.':
+    'Använd ett dokument, en bild, en tabell eller en textfil av en typ som visas i uppladdningsrutan.',
+  'Image text could not be read. The original image is available for visual practice.':
+    'Bildens text kunde inte läsas. Originalbilden finns kvar för bildrepetition.',
+  'Uncertain image text is excluded from automatic facts. Use the image for visual practice.':
+    'Osäker bildtext används inte som fakta. Bilden kan användas för bildrepetition.',
+  'This file does not contain readable document content.':
+    'Filen innehåller inget läsbart dokumentinnehåll.',
+  'No readable study content was found. Try another file or use an image for visual practice.':
+    'Inget läsbart studiematerial hittades. Prova en annan fil eller en bild för bildrepetition.',
+  'correct or self-rated confident': 'rätt eller självbedömda som säkra',
+  'Source image': 'Källbild',
+  'Study the image, hide it, and recall its main points.':
+    'Studera bilden, dölj den och återge det viktigaste.',
+  'Visual recall · compare with the source image': 'Bildrepetition · jämför med källbilden',
+  'Practice question · no verified answer in the source':
+    'Övningsfråga · verifierat facit saknas i källan',
+  'Show image': 'Visa bilden',
+  'Hide image and recall': 'Dölj bilden och försök minnas',
+  'Try answering in your own words, then reveal the source support.':
+    'Försök svara med egna ord och visa sedan stödet från källan.',
+  'Reveal study support': 'Visa studiestöd',
+  'There is no verified answer in this source. Explain the relevant concepts, give an example, and check that you addressed every part of the question.':
+    'Källan innehåller inget verifierat facit. Förklara de relevanta begreppen, ge ett exempel och kontrollera att du besvarat alla delar av frågan.',
+  'Compare what you recalled with the original image. You can practice this page without adding notes.':
+    'Jämför det du mindes med originalbilden. Du kan öva på sidan utan att lägga till anteckningar.',
+  'Define the key concepts in the question.': 'Definiera frågans viktigaste begrepp.',
+  'Explain the relationships or steps in your own words.':
+    'Förklara samband eller steg med egna ord.',
+  'Give a concrete example and justify your answer.':
+    'Ge ett konkret exempel och motivera ditt svar.',
+  'Original question and alternatives': 'Originalfråga och svarsalternativ',
+  'Uncertain OCR text is excluded from study facts. Use the source image to review it.':
+    'Osäker OCR-text används inte som studiefakta. Kontrollera innehållet i källbilden.',
+  'Show unverified extracted text': 'Visa osäker extraherad text',
+  'Documents, images, spreadsheets, or text · Up to 30 MB each':
+    'Dokument, bilder, tabeller eller text · Högst 30 MB per fil',
+  'Practice questions and source facts work in every study mode. No separate notes are required.':
+    'Övningsfrågor och fakta från dina filer fungerar i alla studielägen. Separata anteckningar behövs inte.',
+  'Upload study material to create flashcards, quizzes, and visual practice.':
+    'Ladda upp studiematerial för övningskort, quiz och bildrepetition.',
+  'Add at least a few words of study material.':
+    'Lägg till åtminstone några ord med studiematerial.',
   'A PDF image could not be decoded. This page is unread, not blank.':
     'En bild i PDF-filen kunde inte läsas. Sidan är oläst, inte tom.',
   'Check page coverage and OCR notes against the original PDF before studying.':
@@ -379,5 +444,8 @@ export function t(key: string, values: Record<string, string | number> = {}): st
   return text.replace(/\{(\w+)\}/g, (match, name: string) => String(values[name] ?? match));
 }
 export function locationLabel(label: string): string {
-  return label.replace(/^(Page|Slide|Section)\b/, (value) => t(value));
+  return label.replace(
+    /\b(Page|Slide|Section|Image|Sheet)\s+(?=\d)/g,
+    (value) => t(value.trim()) + ' ',
+  );
 }
