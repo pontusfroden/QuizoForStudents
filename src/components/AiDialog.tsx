@@ -113,6 +113,11 @@ export default function AiDialog({
             'Create concrete answers and explanations on this computer. Questions and relevant excerpts go only to your local Ollama model.',
           )}
         </p>
+        <p>
+          {t(
+            'Allow local network access if your browser asks when checking the connection. If you blocked it, change the permission in this website’s browser settings and try again.',
+          )}
+        </p>
         <label className="field-label">
           {t('Local AI server')}
           <input

@@ -11,6 +11,8 @@ const translations: Record<string, string> = {
   'Create concrete answers and explanations on this computer. Questions and relevant excerpts go only to your local Ollama model.':
     'Skapa konkreta svar och förklaringar på den här datorn. Frågor och relevanta utdrag skickas bara till din lokala Ollama-modell.',
   'Local AI server': 'Lokal AI-server',
+  'Allow local network access if your browser asks when checking the connection. If you blocked it, change the permission in this website’s browser settings and try again.':
+    'Tillåt åtkomst till det lokala nätverket om webbläsaren frågar när du kontrollerar anslutningen. Om du har blockerat åtkomsten, ändra tillståndet i webbläsarens inställningar för den här webbplatsen och försök igen.',
   'Local model': 'Lokal modell',
   'Check connection': 'Kontrollera anslutningen',
   'Checking connection…': 'Kontrollerar anslutningen…',
