@@ -394,7 +394,7 @@ export default function App() {
               className={`set-item ${item.id === library.activeId ? 'selected' : ''}`}
               key={item.id}
               onClick={() => {
-                setLibrary({ ...library, activeId: item.id });
+                setLibrary((current) => (current ? { ...current, activeId: item.id } : current));
                 navigate('overview');
               }}
             >
