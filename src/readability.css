@@ -1,4 +1,16 @@
 /* Keep small supporting text readable, and reserve the palest colors for decoration. */
+
+@media (max-width: 760px) {
+  .page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  .page-heading .compact {
+    display: inline-flex;
+    font-size: 11px;
+  }
+}
 .sidebar {
   overflow-y: auto;
 }
