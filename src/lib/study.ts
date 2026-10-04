@@ -48,12 +48,13 @@ function hash(text: string): string {
   for (const character of text) value = Math.imul(value ^ character.charCodeAt(0), 16777619);
   return (value >>> 0).toString(36);
 }
-export const GENERATION_VERSION = 5;
+export const GENERATION_VERSION = 6;
 export function preserveAiAnswers(
   content: { cards: StudyCard[]; examPrompts: ExamPrompt[] },
   previous: StudyDeck,
   sources = previous.sources,
 ) {
+  const sourceChanged = sources !== previous.sources;
   const cards = content.cards.map((card) => {
     const old = previous.cards.find((item) => item.id === card.id);
     if (
@@ -61,6 +62,11 @@ export function preserveAiAnswers(
       old?.answerStatus !== 'ai' ||
       card.prompt !== old.prompt ||
       JSON.stringify(card.choices) !== JSON.stringify(old.choices)
+    )
+      return card;
+    if (
+      (old.answerType === 'unavailable' || old.answerType === 'approach') &&
+      (sourceChanged || previous.generationVersion !== GENERATION_VERSION)
     )
       return card;
     if (
@@ -99,6 +105,7 @@ export function preserveAiAnswers(
             answer: card.answer,
             answerStatus: card.answerStatus,
             answerExplanation: card.answerExplanation,
+            answerType: card.answerType,
           }
         : prompt;
     }),
@@ -315,11 +322,18 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 export function optionsFor(card: StudyCard, cards: StudyCard[]): string[] {
-  if (card.kind === 'image' || card.answerStatus === 'missing' || card.answerType === 'approach')
+  if (
+    card.kind === 'image' ||
+    card.answerStatus === 'missing' ||
+    card.answerType === 'approach' ||
+    card.answerType === 'unavailable'
+  )
     return card.choices ?? [];
   if (card.kind === 'question')
     return card.choices?.includes(card.answer) ? shuffle(card.choices) : [];
-  const alternatives = [...new Set(cards.map((c) => c.answer))].filter(
+  const alternatives = [
+    ...new Set(cards.filter((c) => c.answerType !== 'unavailable').map((c) => c.answer)),
+  ].filter(
     (answer) =>
       answer &&
       answer.length < 120 &&
@@ -345,12 +359,13 @@ export function recordReview(
   };
 }
 export function studyQueue(deck: StudyDeck, weakOnly = false): StudyCard[] {
+  const usable = deck.cards.filter((card) => card.answerType !== 'unavailable');
   const available = weakOnly
-    ? deck.cards.filter((card) => {
+    ? usable.filter((card) => {
         const p = deck.progress[card.id];
         return p && p.streak < 2;
       })
-    : deck.cards;
+    : usable;
   return shuffle(available).sort((a, b) => {
     const pa = deck.progress[a.id],
       pb = deck.progress[b.id];
@@ -360,7 +375,10 @@ export function studyQueue(deck: StudyDeck, weakOnly = false): StudyCard[] {
   });
 }
 export function stats(deck: StudyDeck) {
-  const entries = Object.values(deck.progress);
+  const usable = deck.cards.filter((card) => card.answerType !== 'unavailable');
+  const entries = usable.flatMap((card) =>
+    deck.progress[card.id] ? [deck.progress[card.id]] : [],
+  );
   const attempts = entries.reduce((sum, p) => sum + p.attempts, 0);
   const correct = entries.reduce((sum, p) => sum + p.correct, 0);
   const familiar = entries.filter((p) => p.streak >= 2).length;
@@ -370,9 +388,8 @@ export function stats(deck: StudyDeck) {
     correct,
     familiar,
     accuracy: attempts ? Math.round((correct / attempts) * 100) : 0,
-    mastery: deck.cards.length ? Math.round((familiar / deck.cards.length) * 100) : 0,
+    mastery: usable.length ? Math.round((familiar / usable.length) * 100) : 0,
     weak: entries.filter((p) => p.streak < 2).length,
-    due: deck.cards.filter((c) => !deck.progress[c.id] || deck.progress[c.id].due <= Date.now())
-      .length,
+    due: usable.filter((c) => !deck.progress[c.id] || deck.progress[c.id].due <= Date.now()).length,
   };
 }

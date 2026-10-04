@@ -95,7 +95,8 @@ export function validateBackup(value: unknown): Library {
           !['source', 'missing', 'ai'].includes(card.answerStatus)) ||
         (card.answerExplanation !== undefined && typeof card.answerExplanation !== 'string') ||
         (card.answerModel !== undefined && typeof card.answerModel !== 'string') ||
-        (card.answerType !== undefined && !['solution', 'approach'].includes(card.answerType)) ||
+        (card.answerType !== undefined &&
+          !['solution', 'approach', 'unavailable'].includes(card.answerType)) ||
         (card.answerBasis !== undefined && !['material', 'general'].includes(card.answerBasis)) ||
         (card.answerReference !== undefined &&
           (!card.answerReference ||
@@ -118,7 +119,9 @@ export function validateBackup(value: unknown): Library {
         (prompt.choices !== undefined &&
           (!Array.isArray(prompt.choices) ||
             prompt.choices.some((choice) => typeof choice !== 'string'))) ||
-        (prompt.answer !== undefined && typeof prompt.answer !== 'string')
+        (prompt.answer !== undefined && typeof prompt.answer !== 'string') ||
+        (prompt.answerType !== undefined &&
+          !['solution', 'approach', 'unavailable'].includes(prompt.answerType))
       )
         throw new Error('The backup has invalid exam prompts.');
     for (const progress of Object.values(deck.progress))

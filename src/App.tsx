@@ -314,7 +314,12 @@ export default function App() {
     ) ?? [];
   const focusCards =
     deck?.cards
-      .filter((card) => deck.progress[card.id] && deck.progress[card.id].streak < 2)
+      .filter(
+        (card) =>
+          card.answerType !== 'unavailable' &&
+          deck.progress[card.id] &&
+          deck.progress[card.id].streak < 2,
+      )
       .slice(0, 4) ?? [];
   const filteredCards =
     deck?.cards
@@ -326,6 +331,8 @@ export default function App() {
     ? []
     : (deck?.cards.filter((card) => card.kind === 'question') ?? []);
   const pendingAnswers = questionCards.filter((card) => card.answerStatus === 'missing').length;
+  const skippedQuestions = questionCards.filter((card) => card.answerType === 'unavailable');
+  const practiceCount = (deck?.cards.length ?? 0) - skippedQuestions.length;
 
   return (
     <div className="app-shell">
@@ -507,8 +514,8 @@ export default function App() {
               <div>
                 <strong>
                   {t('Preparing answers automatically · {ready}/{total} ready', {
-                    ready: questionCards.length - pendingAnswers,
-                    total: questionCards.length,
+                    ready: questionCards.length - pendingAnswers - skippedQuestions.length,
+                    total: questionCards.length - skippedQuestions.length,
                   })}
                 </strong>
                 <p>
@@ -539,6 +546,28 @@ export default function App() {
                 {t('Export backup')}{' '}
               </button>
             </div>
+          )}
+          {skippedQuestions.length > 0 && !session && (
+            <details className="skipped-questions">
+              <summary>
+                {skippedQuestions.length === 1
+                  ? t('1 question without a usable answer is excluded from practice.')
+                  : t('{count} questions without usable answers are excluded from practice.', {
+                      count: skippedQuestions.length,
+                    })}
+              </summary>
+              <p>
+                {t(
+                  'They remain in your materials. Adding relevant sources automatically reassesses these questions.',
+                )}
+              </p>
+              {skippedQuestions.map((card) => (
+                <div key={card.id}>
+                  <strong>{card.prompt}</strong>
+                  <p>{card.answerExplanation || card.answer}</p>
+                </div>
+              ))}
+            </details>
           )}
           {!deck ? (
             <div className="empty-state">
@@ -755,7 +784,7 @@ export default function App() {
                       </div>
                       <div className="set-progress-label">
                         <span>
-                          {deckStats.reviewed} {t('of')} {deck.cards.length}{' '}
+                          {deckStats.reviewed} {t('of')} {practiceCount}{' '}
                           {t('concepts explored')}{' '}
                         </span>
                         <strong>
@@ -1057,6 +1086,13 @@ export default function App() {
                             </small>
                           )
                         )}
+                        {card.answerType === 'unavailable' && (
+                          <p className="warning-text">
+                            <strong>{t('Skipped · source information is missing')}</strong>
+                            <br />
+                            {card.answerExplanation || card.answer}
+                          </p>
+                        )}
                         <small>
                           {deck.sources.find((source) => source.id === card.sourceId)?.name} ·{' '}
                           {locationLabel(card.location)}
@@ -1092,7 +1128,7 @@ export default function App() {
                     <Stat
                       icon={Layers3}
                       tone="orange"
-                      value={`${deckStats.reviewed}/${deck.cards.length}`}
+                      value={`${deckStats.reviewed}/${practiceCount}`}
                       label={t('Concepts explored')}
                     />
                     <Stat

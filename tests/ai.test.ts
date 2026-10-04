@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAiServer, generateAnswer, validateAnswer, validateQuestion } from '../server/ai.mjs';
-import { buildStudyContent, preserveAiAnswers, regenerateDeck } from '../src/lib/study';
+import {
+  buildStudyContent,
+  preserveAiAnswers,
+  regenerateDeck,
+  GENERATION_VERSION,
+  studyQueue,
+  stats,
+} from '../src/lib/study';
+import { applyAiAnswer, supportingContext } from '../src/lib/ai';
 import { validateBackup } from '../src/lib/storage';
 import type { StudySource, StudyDeck } from '../src/types';
 
@@ -197,7 +205,11 @@ describe('answers rather than generic checklists', () => {
         { ...result, status: 'insufficient', answer: '', explanation: 'The figure is missing.' },
         question,
       ),
-    ).toMatchObject({ status: 'ready', answerType: 'approach', answer: 'The figure is missing.' });
+    ).toMatchObject({
+      status: 'ready',
+      answerType: 'unavailable',
+      answer: 'The figure is missing.',
+    });
     expect(
       validateAnswer(
         {
@@ -212,6 +224,102 @@ describe('answers rather than generic checklists', () => {
       answerType: 'approach',
       answer: 'Använd F = ma med massan och accelerationen från figuren.',
     });
+  });
+  it('does not turn an unsupported source-specific claim into a verified solution', () => {
+    expect(validateAnswer({ ...result, requiresSource: true }, question)).toMatchObject({
+      answerType: 'unavailable',
+    });
+    expect(validateAnswer({ ...result, requiresSource: false }, question)).toMatchObject({
+      answerType: 'solution',
+      answer: 'Newton',
+    });
+    const text = 'I kursboken anges att en kraft mäts i newton.';
+    expect(
+      validateAnswer(
+        { ...result, requiresSource: true, basis: 'material', evidence: text },
+        { ...question, context: [{ sourceId: 'book', location: 'Page 4', text }] },
+      ),
+    ).toMatchObject({ answerType: 'solution', basis: 'material' });
+    expect(
+      validateAnswer({ ...result, answerType: 'unavailable', optionIndex: -1 }, question),
+    ).toMatchObject({ answerType: 'unavailable' });
+  });
+  it('retains skipped questions in backups, excludes them from review and retries when sources change', () => {
+    const paper = source('exam', 'Tenta.txt', examText);
+    const deck: StudyDeck = {
+      id: 'skip',
+      title: 'Skip',
+      description: '',
+      createdAt: 1,
+      generationVersion: GENERATION_VERSION,
+      sources: [paper],
+      ...buildStudyContent([paper]),
+      progress: {},
+      sessions: [],
+    };
+    const skipped = applyAiAnswer(deck, deck.cards[0].id, {
+      status: 'ready',
+      answer: 'Boken saknas.',
+      explanation: 'Lägg till det relevanta bokutdraget.',
+      answerType: 'unavailable',
+      basis: 'general',
+      model: question.model,
+    });
+    expect(studyQueue(skipped)).toHaveLength(0);
+    expect(stats(skipped)).toMatchObject({ due: 0, mastery: 0 });
+    expect(
+      validateBackup({ version: 1, decks: [skipped], activeId: skipped.id }).decks[0].cards[0]
+        .answerType,
+    ).toBe('unavailable');
+    expect(preserveAiAnswers(buildStudyContent(skipped.sources), skipped).cards[0].answerType).toBe(
+      'unavailable',
+    );
+    const updated = [
+      ...skipped.sources,
+      source('notes', 'Bok.txt', 'En kraft mäts i enheten newton.'),
+    ];
+    expect(
+      preserveAiAnswers(buildStudyContent(updated), skipped, updated).cards.find(
+        (card) => card.id === deck.cards[0].id,
+      )?.answerStatus,
+    ).toBe('missing');
+    const keyed = [...skipped.sources, source('key', 'Facit.txt', 'Facit\n1. a')];
+    expect(preserveAiAnswers(buildStudyContent(keyed), skipped, keyed).cards[0]).toMatchObject({
+      answer: 'Newton',
+      answerStatus: 'source',
+    });
+  });
+  it('finds relevant book text after the first 2500 characters and excludes exam alternatives', () => {
+    const paper = source('exam', 'Tenta.txt', examText);
+    const book = source(
+      'book',
+      'Kursbok.txt',
+      'Väder och klimat. '.repeat(300) +
+        '\nAlternativkostnad är värdet av det bästa alternativ som du avstår från.',
+    );
+    const deck: StudyDeck = {
+      id: 'context',
+      title: 'Context',
+      description: '',
+      createdAt: 1,
+      sources: [paper, book],
+      ...buildStudyContent([paper, book]),
+      progress: {},
+      sessions: [],
+    };
+    const card = {
+      ...deck.cards[0],
+      prompt: 'Vad innebär alternativkostnad enligt kursboken?',
+      choices: [],
+    };
+    const excerpts = supportingContext(card, deck);
+    expect(
+      excerpts.some(
+        (item) => item.sourceId === 'book' && item.text.includes('Alternativkostnad är värdet'),
+      ),
+    ).toBe(true);
+    expect(excerpts.every((item) => item.text.length <= 2500)).toBe(true);
+    expect(excerpts.some((item) => item.sourceId === 'exam')).toBe(false);
   });
   it('blocks requests from unrelated websites and validates bodies before inference', async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ models: [] })));

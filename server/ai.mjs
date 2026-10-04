@@ -14,9 +14,19 @@ export const answerSchema = {
     optionIndex: { type: 'integer' },
     basis: { type: 'string', enum: ['material', 'general'] },
     evidence: { type: 'string' },
-    answerType: { type: 'string', enum: ['solution', 'approach'] },
+    answerType: { type: 'string', enum: ['solution', 'approach', 'unavailable'] },
+    requiresSource: { type: 'boolean' },
   },
-  required: ['status', 'answer', 'explanation', 'optionIndex', 'basis', 'evidence', 'answerType'],
+  required: [
+    'status',
+    'answer',
+    'explanation',
+    'optionIndex',
+    'basis',
+    'evidence',
+    'answerType',
+    'requiresSource',
+  ],
 };
 
 export function validateQuestion(value) {
@@ -56,7 +66,9 @@ export function validateAnswer(value, question) {
     value.explanation.length > 6000 ||
     !['material', 'general'].includes(value.basis) ||
     typeof value.evidence !== 'string' ||
-    (value.answerType !== undefined && !['solution', 'approach'].includes(value.answerType))
+    (value.requiresSource !== undefined && typeof value.requiresSource !== 'boolean') ||
+    (value.answerType !== undefined &&
+      !['solution', 'approach', 'unavailable'].includes(value.answerType))
   )
     throw new Error('The model did not return a usable answer.');
   if (value.status === 'insufficient') {
@@ -67,26 +79,43 @@ export function validateAnswer(value, question) {
       explanation: '',
       basis: 'general',
       model: question.model,
-      answerType: 'approach',
+      answerType: 'unavailable',
     };
   }
   if (!value.answer.trim() || !value.explanation.trim())
     throw new Error('The model returned an empty answer.');
-  const index = value.optionIndex;
-  if (
-    value.answerType !== 'approach' &&
-    question.choices.length &&
-    (!Number.isInteger(index) || index < 0 || index >= question.choices.length)
-  )
-    throw new Error('The model did not identify an answer option.');
   const reference =
     value.basis === 'material' && value.evidence.trim().length >= 12
       ? question.context.find((item) => item.text.includes(value.evidence.trim()))
       : undefined;
+  // A book/case-specific claim needs a checked excerpt, even if the model suggests an option.
+  if (value.requiresSource && !reference && (value.answerType ?? 'solution') === 'solution') {
+    return {
+      status: 'ready',
+      answerType: 'unavailable',
+      answer:
+        question.language === 'sv'
+          ? 'Underlag saknas för ett tillförlitligt svar.'
+          : 'The source needed for a reliable answer is missing.',
+      explanation:
+        question.language === 'sv'
+          ? 'Frågan gäller innehållet i en särskild källa. Inget stödjande utdrag finns i det skickade materialet. Frågan hoppas över i övningarna tills relevant underlag läggs till.'
+          : 'This question depends on a specific source. No supporting excerpt was supplied. It is excluded from practice until relevant material is added.',
+      basis: 'general',
+      model: question.model,
+    };
+  }
+  const index = value.optionIndex;
+  if (
+    !['approach', 'unavailable'].includes(value.answerType) &&
+    question.choices.length &&
+    (!Number.isInteger(index) || index < 0 || index >= question.choices.length)
+  )
+    throw new Error('The model did not identify an answer option.');
   return {
     status: 'ready',
     answer:
-      question.choices.length && value.answerType !== 'approach'
+      question.choices.length && !['approach', 'unavailable'].includes(value.answerType)
         ? question.choices[index]
         : value.answer.trim(),
     answerType: value.answerType ?? 'solution',
@@ -112,6 +141,7 @@ export async function generateAnswer(question, fetcher = fetch, signal) {
     'Return JSON: status=ready, answer=concrete answer, answerType=solution, explanation=useful reasoning. optionIndex is the zero-based correct choice, or -1 for open questions. Discuss alternatives only if supplied; otherwise give a relevant example.',
     'If a supplied course excerpt answers the question, use it: basis=material and evidence=copy an exact supporting quote of at least 12 characters from its text, without changing words, spelling or punctuation. Do not quote the question or choices. With no supporting excerpt use basis=general and evidence="". Never invent citations or teacher marking schemes.',
     'If essential data or a figure is missing, still give useful support: answerType=approach, optionIndex=-1, explain the specific method/formula and missing inputs, without inventing them or choosing an unknown option. Never give only a generic checklist or ask the student to find an answer.',
+    "Set requiresSource=true when the answer depends on the particular contents of a book, lecture, named case, unseen data/figure or private information. Established subject knowledge and standard named theories are requiresSource=false, even if a book is mentioned. Never invent what an unavailable book/author says. If you cannot give a concrete answer OR a subject-specific method, use answerType=unavailable, optionIndex=-1, and explain which source/information is missing. A generic reading/checklist instruction is unavailable, not approach. If only a general explanation is possible, explicitly say it is general and not the specific source's answer.",
     question.detail === 'full'
       ? 'Give a thorough answer and 3-5 explanatory sentences covering every part.'
       : 'Be concise: answer directly and explain in 1-2 short sentences. Cover requested parts and essential formulas; avoid repeating the answer.',

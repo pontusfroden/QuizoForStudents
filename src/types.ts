@@ -37,7 +37,7 @@ export interface StudyCard {
   answerExplanation?: string;
   answerBasis?: 'material' | 'general';
   answerModel?: string;
-  answerType?: 'solution' | 'approach';
+  answerType?: 'solution' | 'approach' | 'unavailable';
   answerReference?: { sourceId: string; location: string; quote: string };
   matchText?: string;
 }
@@ -51,6 +51,7 @@ export interface ExamPrompt {
   answer?: string;
   answerStatus?: 'source' | 'missing' | 'ai';
   answerExplanation?: string;
+  answerType?: 'solution' | 'approach' | 'unavailable';
 }
 export interface CardProgress {
   attempts: number;

@@ -15,7 +15,7 @@ export interface AiAnswer {
   basis: 'material' | 'general';
   model: string;
   reference?: { sourceId: string; location: string; quote: string };
-  answerType?: 'solution' | 'approach';
+  answerType?: 'solution' | 'approach' | 'unavailable';
 }
 export class AiUnavailableError extends Error {}
 export function applyAiAnswer(deck: StudyDeck, cardId: string, answer: AiAnswer): StudyDeck {
@@ -86,24 +86,7 @@ export async function requestAiAnswer(
   language: 'sv' | 'en',
   signal: AbortSignal,
 ): Promise<AiAnswer> {
-  const tokens = new Set(keywords(card.prompt));
-  const context = deck.sources
-    .flatMap((source) =>
-      source.blocks.map((block) => {
-        let text = reliableText(block);
-        for (const q of parseQuestions(text)) text = text.replace(q.evidence, '');
-        return { sourceId: source.id, location: block.label, text: text.trim().slice(0, 2500) };
-      }),
-    )
-    .filter((item) => item.text.length >= 12)
-    .map((item) => ({
-      ...item,
-      score: keywords(item.text).filter((token) => tokens.has(token)).length,
-    }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map(({ score, ...item }) => item);
+  const context = supportingContext(card, deck);
   let response;
   try {
     response = await fetch(localUrl(settings.url, 'answer'), {
@@ -139,10 +122,13 @@ export async function requestAiAnswer(
     typeof data.answer !== 'string' ||
     !data.answer.trim() ||
     typeof data.explanation !== 'string' ||
-    (!data.explanation.trim() && data.answerType !== 'approach') ||
+    (!data.explanation.trim() && !['approach', 'unavailable'].includes(data.answerType)) ||
     !['material', 'general'].includes(data.basis) ||
-    (data.answerType !== undefined && !['solution', 'approach'].includes(data.answerType)) ||
-    (data.answerType !== 'approach' && card.choices?.length && !card.choices.includes(data.answer))
+    (data.answerType !== undefined &&
+      !['solution', 'approach', 'unavailable'].includes(data.answerType)) ||
+    (!['approach', 'unavailable'].includes(data.answerType) &&
+      card.choices?.length &&
+      !card.choices.includes(data.answer))
   )
     throw new Error(t('AI returned an unusable answer. Try again.'));
   if (
@@ -156,4 +142,35 @@ export async function requestAiAnswer(
   )
     delete data.reference;
   return data;
+}
+
+export function supportingContext(card: StudyCard, deck: StudyDeck) {
+  const tokens = new Set(keywords([card.prompt, ...(card.choices ?? [])].join(' ')));
+  // Search the whole block, including later book paragraphs; do not truncate before ranking.
+  const context = deck.sources
+    .flatMap((source) =>
+      source.blocks.flatMap((block) => {
+        let text = reliableText(block);
+        for (const q of parseQuestions(text)) text = text.replace(q.evidence, '');
+        const chunks = [];
+        for (let offset = 0; offset < text.length; offset += 2200) {
+          chunks.push({
+            sourceId: source.id,
+            location: block.label,
+            text: text.slice(offset, offset + 2500).trim(),
+          });
+        }
+        return chunks;
+      }),
+    )
+    .filter((item) => item.text.length >= 12)
+    .map((item) => ({
+      ...item,
+      score: keywords(item.text).filter((token) => tokens.has(token)).length,
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ score, ...item }) => item);
+  return context;
 }

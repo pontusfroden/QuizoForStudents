@@ -536,6 +536,26 @@
   font-size: 13px;
   line-height: 1.6;
 }
+.skipped-questions {
+  border: 1px solid #eadbbd;
+  border-radius: 12px;
+  background: #fffaf0;
+  color: #745b31;
+  padding: 16px;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.skipped-questions summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.skipped-questions > div {
+  border-top: 1px solid #eadbbd;
+  padding-top: 12px;
+  margin-top: 12px;
+}
 @media (max-width: 600px) {
   .ai-settings-button {
     font-size: 0;

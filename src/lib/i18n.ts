@@ -1,6 +1,16 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  '1 question without a usable answer is excluded from practice.':
+    '1 fråga utan användbart svar hoppas över i övningarna.',
+  'Skipped · source information is missing': 'Överhoppad · nödvändigt underlag saknas',
+  'Skip question': 'Hoppa över frågan',
+  '{count} questions without usable answers are excluded from practice.':
+    '{count} frågor utan användbara svar hoppas över i övningarna.',
+  'They remain in your materials. Adding relevant sources automatically reassesses these questions.':
+    'De finns kvar i ditt material. När du lägger till relevanta källor bedöms frågorna automatiskt på nytt.',
+  'No answerable questions are available yet. Add the missing source material to reassess skipped questions.':
+    'Det finns inga besvarbara frågor ännu. Lägg till det saknade underlaget för att bedöma de överhoppade frågorna på nytt.',
   'AI settings could not be saved in this browser.':
     'AI-inställningarna kunde inte sparas i den här webbläsaren.',
   'Answer length': 'Svarslängd',

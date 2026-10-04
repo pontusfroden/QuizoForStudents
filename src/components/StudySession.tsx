@@ -42,7 +42,9 @@ export default function StudySession(props: Props) {
   const [mismatch, setMismatch] = useState(false);
   const [matchMistakes, setMatchMistakes] = useState<Set<string>>(new Set());
   const finalised = useRef(false);
+  const skippedInRound = useRef(0);
   const initialDeck = useRef(props.deck);
+  if (!started) initialDeck.current = props.deck;
   const deck = initialDeck.current;
   const queue = useMemo(() => studyQueue(deck, props.weakOnly), [deck, props.weakOnly, round]);
   const matchCards = useMemo(() => {
@@ -62,7 +64,9 @@ export default function StudySession(props: Props) {
     .map((card) => props.deck.cards.find((current) => current.id === card.id) ?? card);
   const exams = (
     deck.examPrompts.length
-      ? props.deck.examPrompts
+      ? deck.examPrompts
+          .filter((item) => item.answerType !== 'unavailable')
+          .map((item) => props.deck.examPrompts.find((current) => current.id === item.id) ?? item)
       : queue.map((card) => ({
           id: card.id,
           prompt:
@@ -92,7 +96,13 @@ export default function StudySession(props: Props) {
   const manualQuiz =
     props.mode === 'quiz' &&
     !!card?.kind &&
-    (card.answerStatus === 'missing' || card.answerType === 'approach' || options.length < 2);
+    (card.answerStatus === 'missing' ||
+      card.answerType === 'approach' ||
+      card.answerType === 'unavailable' ||
+      options.length < 2);
+  const unavailable =
+    (props.mode === 'exam' ? examCard?.answerType : card?.answerType) === 'unavailable';
+  const skippedCount = props.deck.cards.filter((item) => item.answerType === 'unavailable').length;
   const visualItem =
     props.mode === 'exam'
       ? !deck.examPrompts.length
@@ -115,7 +125,7 @@ export default function StudySession(props: Props) {
   }[props.mode];
   const finish = (finalScore: number) => {
     if (!finalised.current) {
-      props.onFinish(name, finalScore, total);
+      props.onFinish(name, finalScore, total - skippedInRound.current);
       finalised.current = true;
     }
     setComplete(true);
@@ -165,13 +175,17 @@ export default function StudySession(props: Props) {
     setSelectedTerm(null);
     setSelectedDefinition(null);
     finalised.current = false;
+    skippedInRound.current = 0;
   }
   function tryMatch(termId: string | null, definitionId: string | null) {
     if (!termId || !definitionId) return;
     if (termId === definitionId) {
       const correct = !matchMistakes.has(termId);
-      props.onReview(termId, correct);
-      const nextScore = score + Number(correct);
+      const skipped =
+        props.deck.cards.find((item) => item.id === termId)?.answerType === 'unavailable';
+      if (skipped) skippedInRound.current++;
+      else props.onReview(termId, correct);
+      const nextScore = score + Number(!skipped && correct);
       setScore(nextScore);
       const nextMatched = [...matched, termId];
       setMatched(nextMatched);
@@ -249,13 +263,26 @@ export default function StudySession(props: Props) {
           </button>
           {total === 0 && (
             <p className="warning-text">
-              {props.mode === 'exam'
-                ? t('Upload a past test and mark its file type as “Past test” to use this mode.')
-                : props.weakOnly
-                  ? t('No weak concepts yet. Finish a quiz to find your focus areas.')
-                  : t(
-                      'No readable study content was found. Try another file or use an image for visual practice.',
-                    )}
+              {skippedCount
+                ? t(
+                    'No answerable questions are available yet. Add the missing source material to reassess skipped questions.',
+                  )
+                : props.mode === 'exam'
+                  ? t('Upload a past test and mark its file type as “Past test” to use this mode.')
+                  : props.weakOnly
+                    ? t('No weak concepts yet. Finish a quiz to find your focus areas.')
+                    : t(
+                        'No readable study content was found. Try another file or use an image for visual practice.',
+                      )}
+            </p>
+          )}
+          {skippedCount > 0 && (
+            <p className="warning-text">
+              {skippedCount === 1
+                ? t('1 question without a usable answer is excluded from practice.')
+                : t('{count} questions without usable answers are excluded from practice.', {
+                    count: skippedCount,
+                  })}
             </p>
           )}
           <small>{t('Your progress is saved after each answer.')}</small>
@@ -266,15 +293,22 @@ export default function StudySession(props: Props) {
             <CheckCircle2 size={34} />
           </span>
           <span className="eyebrow">{t('ONE STEP CLOSER')}</span>
-          <h1>{score === total ? t('Look at you go.') : t('That’s how learning happens.')}</h1>
+          <h1>
+            {score === total - skippedInRound.current
+              ? t('Look at you go.')
+              : t('That’s how learning happens.')}
+          </h1>
           <p>
-            {score} {t('of')} {total} {t('correct or self-rated confident')}.{' '}
-            {score === total
+            {score} {t('of')} {total - skippedInRound.current}{' '}
+            {t('correct or self-rated confident')}.{' '}
+            {score === total - skippedInRound.current
               ? t('Revisit these later to help them stick.')
               : t('The tricky concepts are waiting in your review queue.')}
           </p>
           <div className="completion-score">
-            {Math.round((score / total) * 100)}
+            {total > skippedInRound.current
+              ? Math.round((score / (total - skippedInRound.current)) * 100)
+              : '—'}
             <span>%</span>
           </div>
           <div className="button-row">
@@ -394,9 +428,11 @@ export default function StudySession(props: Props) {
             )}
             {(props.mode === 'exam' ? examCard?.answerStatus : card?.answerStatus) === 'ai' && (
               <p className="answer-label">
-                {(props.mode === 'exam' ? examCard?.answerType : card?.answerType) === 'approach'
-                  ? t('Solution approach · exact answer needs more information')
-                  : t('AI suggestion · review against your course material')}
+                {unavailable
+                  ? t('Skipped · source information is missing')
+                  : (props.mode === 'exam' ? examCard?.answerType : card?.answerType) === 'approach'
+                    ? t('Solution approach · exact answer needs more information')
+                    : t('AI suggestion · review against your course material')}
               </p>
             )}
             {visualBlock?.image && !revealed && (
@@ -635,7 +671,17 @@ export default function StudySession(props: Props) {
           </div>
           {(revealed || selected !== null) && (
             <div className="answer-actions">
-              {props.mode === 'quiz' && !manualQuiz ? (
+              {unavailable ? (
+                <button
+                  className="button secondary"
+                  onClick={() => {
+                    skippedInRound.current++;
+                    next(false, false);
+                  }}
+                >
+                  {t('Skip question')} <ArrowRight size={16} />
+                </button>
+              ) : props.mode === 'quiz' && !manualQuiz ? (
                 <button
                   className="button primary"
                   onClick={() =>
