@@ -6,6 +6,7 @@ import { t } from './i18n';
 export interface AiSettings {
   url: string;
   model: string;
+  detail?: 'brief' | 'full';
 }
 export interface AiAnswer {
   status: 'ready';
@@ -111,6 +112,7 @@ export async function requestAiAnswer(
       signal,
       body: JSON.stringify({
         model: settings.model,
+        detail: settings.detail ?? 'brief',
         prompt: card.prompt,
         choices: card.choices ?? [],
         context,

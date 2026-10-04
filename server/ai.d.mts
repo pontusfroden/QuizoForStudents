@@ -5,6 +5,7 @@ export interface AiQuestion {
   context: { sourceId: string; location: string; text: string }[];
   language: string;
   model: string;
+  detail?: 'brief' | 'full';
 }
 export interface AiResult {
   status: 'ready' | 'insufficient';

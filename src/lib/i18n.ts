@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from 'react';
 export type Locale = 'en' | 'sv';
 const translations: Record<string, string> = {
+  'AI settings could not be saved in this browser.':
+    'AI-inställningarna kunde inte sparas i den här webbläsaren.',
+  'Answer length': 'Svarslängd',
+  'Short and quick': 'Korta och snabba svar',
+  'More detailed explanations': 'Utförligare förklaringar',
   'The answer is being prepared automatically. This card updates as soon as it is ready.':
     'Svaret skapas automatiskt i bakgrunden. Kortet uppdateras så snart det är klart.',
   'Local AI is busy or unavailable. Answers will resume automatically.':

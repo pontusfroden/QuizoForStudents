@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 
 async function exam(page: Page, manual = false) {
   await page.goto('./');
-  await page.getByRole('combobox', { name: 'Interface language' }).selectOption('sv');
+  await page.locator('.language-select').selectOption('sv');
   await page.getByRole('button', { name: 'Prova ditt eget material' }).click();
   await page.getByRole('textbox', { name: 'Studiesamlingens namn' }).fill('Svar i kort');
   await page.getByLabel('Ladda upp studiefiler').setInputFiles({
@@ -74,6 +74,35 @@ test('an unavailable model does not invent an answer or discard the uploaded que
     'Inget svar har lästs eller skapats ännu',
   );
   await expect(page.locator('.question-panel h2')).toContainText('Vilken enhet mäter kraft');
+});
+
+test('answer length settings persist on close and are used by automatic preparation', async ({
+  page,
+}) => {
+  await page.goto('./');
+  await page.getByRole('combobox', { name: 'Interface language' }).selectOption('sv');
+  await page.getByRole('button', { name: 'AI-inställningar', exact: true }).click();
+  await page.getByLabel('Svarslängd').selectOption('full');
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'AI-inställningar', exact: true }).click();
+  await expect(page.getByLabel('Svarslängd')).toHaveValue('full');
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await page.route('**/api/status', (route) => route.fulfill({ json: { models: ['qwen3.5:4b'] } }));
+  await page.route('**/api/answer', (route) => {
+    expect(route.request().postDataJSON().detail).toBe('full');
+    return route.fulfill({
+      json: {
+        status: 'ready',
+        answer: 'Newton',
+        explanation: 'Kraft mäts i newton.',
+        basis: 'general',
+        model: 'qwen3.5:4b',
+      },
+    });
+  });
+  await exam(page);
+  await expect(page.locator('.actual-answer')).toHaveText('Newton');
 });
 
 test('a separate answer-key upload replaces an existing AI answer without another inference', async ({

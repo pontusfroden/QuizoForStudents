@@ -78,6 +78,7 @@ test('real PDF, TXT, DOCX, PPTX upload, search, source deletion and backup round
   page,
 }) => {
   await page.goto('./');
+  await page.locator('.topbar').waitFor();
   if (await page.getByRole('button', { name: 'Open navigation' }).isVisible())
     await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('button', { name: 'New study set', exact: true }).click();

@@ -188,6 +188,10 @@ describe('answers rather than generic checklists', () => {
     const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
     expect(body.format.properties.status.enum).toEqual(['ready', 'insufficient']);
     expect(body.messages[0].content).toContain('EMPTY CONTEXT IS NORMAL');
+    expect(body.options.num_predict).toBe(450);
+    expect(body.keep_alive).toBe('30m');
+    await generateAnswer({ ...question, detail: 'full' }, fetcher);
+    expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).options.num_predict).toBe(700);
     expect(
       validateAnswer(
         { ...result, status: 'insufficient', answer: '', explanation: 'The figure is missing.' },
@@ -238,6 +242,50 @@ describe('answers rather than generic checklists', () => {
         'https://pontusfroden.github.io',
       );
       expect(await status.json()).toEqual({ provider: 'ollama', models: [] });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+  it('reuses only exact inputs and expires local answer caches', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ message: { content: JSON.stringify(result) }, done_reason: 'stop' }),
+        ),
+    );
+    const server = createAiServer(fetcher);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No server');
+    const send = (body: unknown) =>
+      fetch(`http://127.0.0.1:${address.port}/api/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    try {
+      expect((await send(question)).headers.get('X-Quizo-Cache')).toBe('miss');
+      const cached = await send({ ...question, detail: 'brief' });
+      expect(cached.headers.get('X-Quizo-Cache')).toBe('hit');
+      expect((await cached.json()).answer).toBe('Newton');
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      await send({ ...question, detail: 'full' });
+      await send({
+        ...question,
+        context: [
+          { sourceId: 'new', location: 'Page 1', text: 'Annan kurskälla med mer information.' },
+        ],
+      });
+      await send({ ...question, language: 'en' });
+      expect(fetcher).toHaveBeenCalledTimes(4);
+      const now = Date.now();
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 31 * 60_000);
+      try {
+        expect((await send(question)).headers.get('X-Quizo-Cache')).toBe('miss');
+      } finally {
+        clock.mockRestore();
+      }
+      expect(fetcher).toHaveBeenCalledTimes(5);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

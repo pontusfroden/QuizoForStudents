@@ -38,6 +38,13 @@ export default function AiDialog({
     dialog.current?.showModal();
     return () => controller.current?.abort();
   }, []);
+  useEffect(() => {
+    try {
+      saveAiSettings(settings);
+    } catch {
+      setError(t('AI settings could not be saved in this browser.'));
+    }
+  }, [settings]);
   async function connect() {
     const task = new AbortController();
     controller.current = task;
@@ -149,6 +156,22 @@ export default function AiDialog({
         {connected && !models.length && (
           <p>{t('No local model installed. Download a model in Ollama first.')}</p>
         )}
+        <label className="field-label">
+          {t('Answer length')}
+          <select
+            value={settings.detail ?? 'brief'}
+            disabled={busy}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                detail: event.target.value as 'brief' | 'full',
+              }))
+            }
+          >
+            <option value="brief">{t('Short and quick')}</option>
+            <option value="full">{t('More detailed explanations')}</option>
+          </select>
+        </label>
         <p>
           {t(
             'AI answers are suggestions, not a teacher’s answer key. Review the answer and its explanation before relying on it.',
